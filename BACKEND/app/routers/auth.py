@@ -93,7 +93,7 @@ async def login(credentials: LoginRequest, db: Connection = Depends(get_db)):
         usuario_dict = row_to_dict(usuario)
         
         # Verificar contraseña
-        # ⚠️ NOTA: En producción, usar bcrypt para comparar contraseñas hasheadas
+        #  NOTA: En producción, usar bcrypt para comparar contraseñas hasheadas
         # from passlib.context import CryptContext
         # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         # if not pwd_context.verify(credentials.Contrasena, usuario_dict["Contrasena"]):

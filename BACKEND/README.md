@@ -109,13 +109,6 @@ La API estará disponible en:
 - `PUT /api/consultas/{codigo}` - Actualizar una consulta
 - `DELETE /api/consultas/{codigo}` - Eliminar una consulta
 
-### Facturación
-- `GET /api/facturacion` - Listar todas las facturas
-- `GET /api/facturacion/{codigo}` - Obtener una factura
-- `POST /api/facturacion` - Crear una factura
-- `PUT /api/facturacion/{codigo}` - Actualizar una factura
-- `DELETE /api/facturacion/{codigo}` - Eliminar una factura
-
 ### Recetas
 - `GET /api/recetas` - Listar todas las recetas
 - `GET /api/recetas/{codigo}` - Obtener una receta
@@ -159,7 +152,6 @@ sis-centromev1/
 │       ├── doctor.py
 │       ├── citas.py
 │       ├── consultas.py
-│       ├── facturacion.py
 │       ├── receta.py
 │       ├── historial.py
 │       ├── examenes.py

@@ -62,6 +62,198 @@ async def listar_recetas(
         )
 
 
+@router.get("/completas", response_model=List[dict])
+async def listar_recetas_completas(
+    db: Connection = Depends(get_db),
+    codigo_doctor: Optional[int] = Query(None, description="Filtrar por doctor")
+):
+    """
+    Listar todas las recetas con información completa de las tablas relacionadas
+    
+    Incluye información de:
+    - Receta (todos los campos)
+    - Paciente (Nombre, Apellidos, etc.)
+    - Doctor (Nombre, Apellidos, Especialidad, etc.)
+    - Consulta (si está asociada)
+    
+    - **codigo_doctor**: Filtrar por doctor (opcional)
+    """
+    try:
+        cursor = db.cursor()
+        
+        # Verificar que la tabla existe
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='receta'")
+        if not cursor.fetchone():
+            logger.error("La tabla 'receta' no existe en la base de datos")
+            raise HTTPException(
+                status_code=500,
+                detail="La tabla de recetas no existe en la base de datos"
+            )
+        
+        # Verificar qué columnas de exámenes existen en consultas_medicas
+        cursor.execute("PRAGMA table_info(consultas_medicas)")
+        columnas_consulta = [col[1] for col in cursor.fetchall()]
+        
+        # Construir SELECT dinámicamente según las columnas disponibles
+        campos_examenes = []
+        if "Examenes_Solicitados" in columnas_consulta:
+            campos_examenes.append("c.Examenes_Solicitados AS Consulta_Examenes_Solicitados")
+        if "Examenes_Descripcion" in columnas_consulta:
+            campos_examenes.append("c.Examenes_Descripcion AS Consulta_Examenes_Descripcion")
+        if "Examenes_Sugeridos" in columnas_consulta:
+            campos_examenes.append("c.Examenes_Sugeridos AS Consulta_Examenes_Sugeridos")
+        if "Examenes_Sugeridos_Descripcion" in columnas_consulta:
+            campos_examenes.append("c.Examenes_Sugeridos_Descripcion AS Consulta_Examenes_Sugeridos_Descripcion")
+        
+        campos_examenes_str = ",\n                ".join(campos_examenes) if campos_examenes else ""
+        if campos_examenes_str:
+            campos_examenes_str = ",\n                " + campos_examenes_str
+        
+        # Query con JOINs para obtener información completa
+        query = f"""
+            SELECT 
+                r.Codigo,
+                r.Codigo_Paciente,
+                r.Codigo_Doctor,
+                r.Codigo_Consulta,
+                r.Nombre_Paciente,
+                r.Fecha_Receta,
+                r.Medicamento,
+                r.Instrucciones,
+                r.Fecha_Creacion,
+                r.Fecha_Modificacion,
+                p.Nombre AS Paciente_Nombre,
+                p.Apellidos AS Paciente_Apellidos,
+                p.Numero_Celular AS Paciente_Telefono,
+                p.Fecha_Nacimiento AS Paciente_Fecha_Nacimiento,
+                d.Nombre AS Doctor_Nombre,
+                d.Apellidos AS Doctor_Apellidos,
+                d.Especialidad AS Doctor_Especialidad,
+                d.Numero_Celular AS Doctor_Telefono,
+                d.Correo AS Doctor_Email,
+                d.Estado AS Doctor_Estado,
+                c.Tipo_de_Consulta AS Consulta_Tipo,
+                c.Fecha_de_Consulta AS Consulta_Fecha,
+                c.Estado AS Consulta_Estado,
+                c.Diagnostico AS Consulta_Diagnostico{campos_examenes_str}
+            FROM receta r
+            LEFT JOIN pacientes p ON r.Codigo_Paciente = p.Codigo
+            LEFT JOIN doctor d ON r.Codigo_Doctor = d.Codigo
+            LEFT JOIN consultas_medicas c ON r.Codigo_Consulta = c.Codigo
+            WHERE 1=1
+        """
+        
+        params = []
+        
+        if codigo_doctor:
+            query += " AND r.Codigo_Doctor = ?"
+            params.append(codigo_doctor)
+        
+        query += " ORDER BY r.Fecha_Receta DESC"
+        
+        logger.info(f"Ejecutando query: {query}")
+        logger.info(f"Parámetros: {params}")
+        
+        try:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        except Exception as query_error:
+            logger.error(f"Error al ejecutar query: {query_error}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error en la consulta SQL: {str(query_error)}"
+            )
+        
+        logger.info(f"Recetas encontradas: {len(rows)}")
+        
+        # Si no hay recetas, retornar lista vacía
+        if not rows:
+            logger.info("No se encontraron recetas")
+            return []
+        
+        # Convertir a diccionarios con estructura clara
+        recetas_completas = []
+        for idx, row in enumerate(rows):
+            try:
+                # Convertir row a diccionario primero
+                if row is None:
+                    logger.warning(f"Fila {idx} es None, omitiendo")
+                    continue
+                
+                # Convertir Row a diccionario
+                row_dict = dict(row)
+                
+                logger.debug(f"Procesando receta {row_dict.get('Codigo')}")
+                
+                receta_dict = {
+                    # Datos de la receta
+                    "receta": {
+                        "Codigo": row_dict.get("Codigo"),
+                        "Codigo_Paciente": row_dict.get("Codigo_Paciente"),
+                        "Codigo_Doctor": row_dict.get("Codigo_Doctor"),
+                        "Codigo_Consulta": row_dict.get("Codigo_Consulta"),
+                        "Nombre_Paciente": row_dict.get("Nombre_Paciente"),
+                        "Fecha_Receta": row_dict.get("Fecha_Receta"),
+                        "Medicamento": row_dict.get("Medicamento"),
+                        "Instrucciones": row_dict.get("Instrucciones"),
+                        "Fecha_Creacion": row_dict.get("Fecha_Creacion"),
+                        "Fecha_Modificacion": row_dict.get("Fecha_Modificacion")
+                    },
+                    # Información del paciente
+                    "paciente": {
+                        "Codigo": row_dict.get("Codigo_Paciente"),
+                        "Nombre": row_dict.get("Paciente_Nombre"),
+                        "Apellidos": row_dict.get("Paciente_Apellidos"),
+                        "Telefono": row_dict.get("Paciente_Telefono"),
+                        "Fecha_Nacimiento": row_dict.get("Paciente_Fecha_Nacimiento")
+                    } if row_dict.get("Codigo_Paciente") else None,
+                    # Información del doctor
+                    "doctor": {
+                        "Codigo": row_dict.get("Codigo_Doctor"),
+                        "Nombre": row_dict.get("Doctor_Nombre"),
+                        "Apellidos": row_dict.get("Doctor_Apellidos"),
+                        "Especialidad": row_dict.get("Doctor_Especialidad"),
+                        "Telefono": row_dict.get("Doctor_Telefono"),
+                        "Email": row_dict.get("Doctor_Email"),
+                        "Estado": row_dict.get("Doctor_Estado")
+                    } if row_dict.get("Codigo_Doctor") else None,
+                    # Información de la consulta
+                    "consulta": {
+                        "Codigo": row_dict.get("Codigo_Consulta"),
+                        "Tipo_de_Consulta": row_dict.get("Consulta_Tipo"),
+                        "Fecha_de_Consulta": row_dict.get("Consulta_Fecha"),
+                        "Estado": row_dict.get("Consulta_Estado"),
+                        "Diagnostico": row_dict.get("Consulta_Diagnostico"),
+                        "Examenes_Solicitados": bool(row_dict.get("Consulta_Examenes_Solicitados")) if "Consulta_Examenes_Solicitados" in row_dict and row_dict.get("Consulta_Examenes_Solicitados") is not None else None,
+                        "Examenes_Descripcion": row_dict.get("Consulta_Examenes_Descripcion") if "Consulta_Examenes_Descripcion" in row_dict else None,
+                        "Examenes_Sugeridos": bool(row_dict.get("Consulta_Examenes_Sugeridos")) if "Consulta_Examenes_Sugeridos" in row_dict and row_dict.get("Consulta_Examenes_Sugeridos") is not None else None,
+                        "Examenes_Sugeridos_Descripcion": row_dict.get("Consulta_Examenes_Sugeridos_Descripcion") if "Consulta_Examenes_Sugeridos_Descripcion" in row_dict else None
+                    } if row_dict.get("Codigo_Consulta") else None
+                }
+                recetas_completas.append(receta_dict)
+            except Exception as e:
+                logger.error(f"Error al procesar fila de receta: {e}", exc_info=True)
+                logger.error(f"Fila: {dict(row) if row else 'None'}")
+                # Continuar con la siguiente fila en lugar de fallar completamente
+                continue
+        
+        logger.info(f"Recetas procesadas exitosamente: {len(recetas_completas)}")
+        return recetas_completas
+    
+    except OperationalError as e:
+        logger.error(f"Error de base de datos al listar recetas completas: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al acceder a la base de datos: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error inesperado al listar recetas completas: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+
 @router.get("/{codigo}", response_model=Receta)
 async def obtener_receta(codigo: int, db: Connection = Depends(get_db)):
     """Obtener una receta por código"""

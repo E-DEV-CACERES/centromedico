@@ -9,43 +9,39 @@
         class="border-0 bg-gray-800 text-white"
         router
       >
-        <el-menu-item index="/">
+        <el-menu-item index="/" v-if="hasAccess(['Admin', 'Doctor', 'Recepcionista', 'User'])">
           <el-icon><House /></el-icon>
           <span>Inicio</span>
         </el-menu-item>
-        <el-menu-item index="/pacientes">
+        <el-menu-item index="/pacientes" v-if="hasAccess(['Admin', 'Doctor', 'Recepcionista', 'User'])">
           <el-icon><User /></el-icon>
           <span>Pacientes</span>
         </el-menu-item>
-        <el-menu-item index="/doctores">
+        <el-menu-item index="/doctores" v-if="hasAccess(['Admin', 'Doctor', 'Recepcionista', 'User'])">
           <el-icon><Avatar /></el-icon>
           <span>Doctores</span>
         </el-menu-item>
-        <el-menu-item index="/citas">
+        <el-menu-item index="/citas" v-if="hasAccess(['Admin', 'Doctor', 'Recepcionista', 'User'])">
           <el-icon><Calendar /></el-icon>
           <span>Citas</span>
         </el-menu-item>
-        <el-menu-item index="/consultas">
+        <el-menu-item index="/consultas" v-if="hasAccess(['Admin', 'Doctor'])">
           <el-icon><Document /></el-icon>
           <span>Consultas</span>
         </el-menu-item>
-        <el-menu-item index="/facturacion">
-          <el-icon><Money /></el-icon>
-          <span>Facturación</span>
-        </el-menu-item>
-        <el-menu-item index="/recetas">
+        <el-menu-item index="/recetas" v-if="hasAccess(['Admin', 'Doctor'])">
           <el-icon><Notebook /></el-icon>
           <span>Recetas</span>
         </el-menu-item>
-        <el-menu-item index="/historial">
+        <el-menu-item index="/historial" v-if="hasAccess(['Admin', 'Doctor'])">
           <el-icon><Files /></el-icon>
           <span>Historial</span>
         </el-menu-item>
-        <el-menu-item index="/examenes">
+        <el-menu-item index="/examenes" v-if="hasAccess(['Admin', 'Doctor', 'Recepcionista', 'User'])">
           <el-icon><Search /></el-icon>
           <span>Exámenes</span>
         </el-menu-item>
-        <el-menu-item index="/usuarios">
+        <el-menu-item index="/usuarios" v-if="hasAccess(['Admin'])">
           <el-icon><UserFilled /></el-icon>
           <span>Usuarios</span>
         </el-menu-item>
@@ -94,7 +90,6 @@ import {
   Avatar,
   Calendar,
   Document,
-  Money,
   Notebook,
   Files,
   Search,
@@ -110,6 +105,20 @@ const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || 'Sistema')
+
+// Función para verificar acceso basado en roles
+function hasAccess(allowedRoles: string[]): boolean {
+  const userRole = authStore.userRole
+  if (!userRole) return false
+  
+  // Normalizar el rol del usuario (puede ser "User" o "Recepcionista")
+  const normalizedRole = userRole === 'User' || userRole === 'Recepcionista' ? 'User' : userRole
+  const normalizedAllowedRoles = allowedRoles.map(role => 
+    role === 'User' || role === 'Recepcionista' ? 'User' : role
+  )
+  
+  return normalizedAllowedRoles.includes(normalizedRole)
+}
 
 async function handleCommand(command: string) {
   if (command === 'logout') {

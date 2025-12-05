@@ -1,5 +1,10 @@
 import api from './api'
 
+export interface ExamenSolicitado {
+  Fecha_Consulta?: string
+  Descripcion?: string
+}
+
 export interface Historial {
   Codigo_Historial: number
   Codigo_Paciente?: number
@@ -9,6 +14,7 @@ export interface Historial {
   Observaciones?: string
   Fecha_Creacion?: string
   Fecha_Modificacion?: string
+  Examenes_Solicitados?: ExamenSolicitado[]
 }
 
 export interface HistorialCreate {

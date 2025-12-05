@@ -2,12 +2,15 @@
 Router para gestión de usuarios del sistema
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlite3 import Connection, IntegrityError, OperationalError
 from typing import List, Optional, Dict, Any
-from app.database import get_db
+from app.database import get_db, DATABASE_URL
 from app.models import UsuarioSistema, UsuarioSistemaCreate, UsuarioSistemaUpdate
 from datetime import datetime
 import logging
+import shutil
+import os
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -391,4 +394,157 @@ async def eliminar_usuario(codigo: int, db: Connection = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=f"Error al eliminar el usuario: {str(e)}"
+        )
+
+
+@router.post("/backup")
+async def crear_backup():
+    """
+    Crear una copia de seguridad de la base de datos
+    
+    Genera un archivo de backup con timestamp en el nombre.
+    """
+    try:
+        # Generar nombre de archivo con timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"backup_{timestamp}.db"
+        
+        # Obtener la ruta del directorio actual (donde está el archivo de la base de datos)
+        current_dir = os.path.dirname(os.path.abspath(DATABASE_URL))
+        if not current_dir:
+            current_dir = os.getcwd()
+        
+        backup_path = os.path.join(current_dir, backup_filename)
+        
+        # Obtener la ruta completa de la base de datos
+        db_path = os.path.abspath(DATABASE_URL)
+        
+        # Verificar que el archivo de base de datos existe
+        if not os.path.exists(db_path):
+            raise HTTPException(
+                status_code=404,
+                detail="La base de datos no existe"
+            )
+        
+        # Crear copia de seguridad usando SQLite backup API para mayor seguridad
+        import sqlite3
+        source_conn = sqlite3.connect(db_path)
+        backup_conn = sqlite3.connect(backup_path)
+        
+        # Usar backup API de SQLite
+        source_conn.backup(backup_conn)
+        
+        backup_conn.close()
+        source_conn.close()
+        
+        logger.info(f"Backup creado exitosamente: {backup_filename}")
+        
+        return {
+            "message": "Copia de seguridad creada exitosamente",
+            "filename": backup_filename,
+            "path": backup_path,
+            "timestamp": timestamp
+        }
+    
+    except FileNotFoundError as e:
+        logger.error(f"Error al crear backup: archivo no encontrado - {e}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Error al crear backup: {str(e)}"
+        )
+    except PermissionError as e:
+        logger.error(f"Error de permisos al crear backup: {e}")
+        raise HTTPException(
+            status_code=403,
+            detail="No se tienen permisos para crear el backup"
+        )
+    except Exception as e:
+        logger.error(f"Error inesperado al crear backup: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear la copia de seguridad: {str(e)}"
+        )
+
+
+@router.get("/backup/download/{filename}")
+async def descargar_backup(filename: str):
+    """
+    Descargar un archivo de backup específico
+    
+    - **filename**: Nombre del archivo de backup a descargar
+    """
+    try:
+        # Validar que el nombre del archivo sea seguro (solo contiene caracteres permitidos)
+        if not filename.endswith('.db') or '..' in filename or '/' in filename or '\\' in filename:
+            raise HTTPException(
+                status_code=400,
+                detail="Nombre de archivo inválido"
+            )
+        
+        current_dir = os.path.dirname(os.path.abspath(DATABASE_URL))
+        if not current_dir:
+            current_dir = os.getcwd()
+        
+        backup_path = os.path.join(current_dir, filename)
+        backup_path = os.path.abspath(backup_path)
+        
+        # Verificar que el archivo existe
+        if not os.path.exists(backup_path):
+            raise HTTPException(
+                status_code=404,
+                detail="El archivo de backup no existe"
+            )
+        
+        return FileResponse(
+            path=backup_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error al descargar backup {filename}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al descargar el backup: {str(e)}"
+        )
+
+
+@router.get("/backup/list")
+async def listar_backups():
+    """
+    Listar todos los archivos de backup disponibles
+    """
+    try:
+        current_dir = os.path.dirname(os.path.abspath(DATABASE_URL))
+        if not current_dir:
+            current_dir = os.getcwd()
+        
+        backups = []
+        if os.path.exists(current_dir):
+            for filename in os.listdir(current_dir):
+                if filename.startswith("backup_") and filename.endswith(".db"):
+                    filepath = os.path.join(current_dir, filename)
+                    file_stat = os.stat(filepath)
+                    backups.append({
+                        "filename": filename,
+                        "size": file_stat.st_size,
+                        "created": datetime.fromtimestamp(file_stat.st_ctime).isoformat(),
+                        "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                    })
+        
+        # Ordenar por fecha de creación (más recientes primero)
+        backups.sort(key=lambda x: x["created"], reverse=True)
+        
+        return {
+            "backups": backups,
+            "count": len(backups)
+        }
+    
+    except Exception as e:
+        logger.error(f"Error al listar backups: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al listar los backups: {str(e)}"
         )

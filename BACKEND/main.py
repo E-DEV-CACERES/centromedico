@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException as FastAPIHTTPException
-from app.routers import pacientes, doctor, citas, consultas, facturacion, receta, historial, examenes, usuarios, auth
+from app.routers import pacientes, doctor, citas, consultas, receta, historial, examenes, usuarios, auth
 from sqlite3 import OperationalError, DatabaseError
 import logging
 import traceback
@@ -51,7 +51,6 @@ app.include_router(pacientes.router, prefix="/api/pacientes", tags=["Pacientes"]
 app.include_router(doctor.router, prefix="/api/doctores", tags=["Doctores"])
 app.include_router(citas.router, prefix="/api/citas", tags=["Citas"])
 app.include_router(consultas.router, prefix="/api/consultas", tags=["Consultas"])
-app.include_router(facturacion.router, prefix="/api/facturacion", tags=["Facturación"])
 app.include_router(receta.router, prefix="/api/recetas", tags=["Recetas"])
 app.include_router(historial.router, prefix="/api/historial", tags=["Historial Médico"])
 app.include_router(examenes.router, prefix="/api/examenes", tags=["Exámenes de Laboratorio"])

@@ -40,7 +40,45 @@ async def listar_historiales(
         
         cursor.execute(query, params)
         historiales = cursor.fetchall()
-        return [dict(row) for row in historiales] if historiales else []
+        
+        # Obtener consultas con exámenes solicitados para cada paciente
+        resultado = []
+        for row in historiales:
+            historial_dict = dict(row)
+            codigo_pac = historial_dict.get("Codigo_Paciente")
+            
+            # Obtener consultas con exámenes solicitados para este paciente
+            if codigo_pac:
+                # Verificar si existen las columnas de exámenes
+                cursor.execute("PRAGMA table_info(consultas_medicas)")
+                columnas_info = cursor.fetchall()
+                columnas_disponibles = [col[1] for col in columnas_info]
+                
+                if "Examenes_Solicitados" in columnas_disponibles:
+                    cursor.execute("""
+                        SELECT Codigo, Fecha_de_Consulta, Examenes_Descripcion, Examenes_Solicitados
+                        FROM consultas_medicas
+                        WHERE Codigo_Paciente = ? 
+                        AND Examenes_Solicitados = 1
+                        ORDER BY Fecha_de_Consulta DESC
+                    """, (codigo_pac,))
+                    consultas_examenes = cursor.fetchall()
+                    
+                    # Agregar información de exámenes solicitados al historial
+                    examenes_solicitados = []
+                    for consulta in consultas_examenes:
+                        consulta_dict = dict(consulta)
+                        if consulta_dict.get("Examenes_Descripcion"):
+                            examenes_solicitados.append({
+                                "Fecha_Consulta": consulta_dict.get("Fecha_de_Consulta"),
+                                "Descripcion": consulta_dict.get("Examenes_Descripcion")
+                            })
+                    
+                    historial_dict["Examenes_Solicitados"] = examenes_solicitados
+            
+            resultado.append(historial_dict)
+        
+        return resultado
     
     except OperationalError as e:
         logger.error(f"Error de base de datos al listar historiales: {e}")

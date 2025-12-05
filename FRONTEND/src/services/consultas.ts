@@ -8,6 +8,10 @@ export interface Consulta {
   Fecha_de_Consulta?: string
   Diagnostico?: string
   Estado?: string
+  Examenes_Solicitados?: boolean
+  Examenes_Descripcion?: string
+  Examenes_Sugeridos?: boolean
+  Examenes_Sugeridos_Descripcion?: string
   Fecha_Creacion?: string
   Fecha_Modificacion?: string
 }
@@ -19,6 +23,10 @@ export interface ConsultaCreate {
   Fecha_de_Consulta?: string
   Diagnostico?: string
   Estado?: string
+  Examenes_Solicitados?: boolean
+  Examenes_Descripcion?: string
+  Examenes_Sugeridos?: boolean
+  Examenes_Sugeridos_Descripcion?: string
 }
 
 export interface ConsultaUpdate {
@@ -28,6 +36,10 @@ export interface ConsultaUpdate {
   Fecha_de_Consulta?: string
   Diagnostico?: string
   Estado?: string
+  Examenes_Solicitados?: boolean
+  Examenes_Descripcion?: string
+  Examenes_Sugeridos?: boolean
+  Examenes_Sugeridos_Descripcion?: string
 }
 
 export interface ConsultaFilters {

@@ -153,6 +153,9 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
     cursor = db.cursor()
     
     try:
+        # Log para debugging
+        logger.info(f"Recibiendo solicitud para crear cita: {cita.model_dump()}")
+        
         # Validar fecha futura
         if cita.Fecha_Hora:
             validar_fecha_futura(cita.Fecha_Hora)
@@ -223,6 +226,13 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
     except HTTPException:
         db.rollback()
         raise
+    except ValueError as e:
+        db.rollback()
+        logger.error(f"Error de validación de datos: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error de validación: {str(e)}"
+        )
     except IntegrityError as e:
         db.rollback()
         logger.error(f"Error de integridad al crear cita: {e}")
@@ -232,10 +242,10 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"Error inesperado al crear cita: {e}")
+        logger.error(f"Error inesperado al crear cita: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al crear la cita"
+            detail=f"Error al crear la cita: {str(e)}"
         )
 
 

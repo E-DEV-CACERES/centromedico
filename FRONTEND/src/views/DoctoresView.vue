@@ -18,12 +18,27 @@
           <el-table-column prop="Numero_Colegiado" label="N° Colegiado" />
           <el-table-column prop="Correo" label="Correo" />
           <el-table-column prop="Estado" label="Estado" width="100" />
-          <el-table-column label="Acciones" width="200" fixed="right">
+          <el-table-column label="Acciones" width="160" fixed="right" align="center">
             <template #default="{ row }">
-              <el-button size="small" @click="handleEdit(row)">Editar</el-button>
-              <el-button size="small" type="danger" @click="handleDelete(row.Codigo)">
-                Eliminar
-              </el-button>
+              <div class="flex gap-2 justify-center">
+                <el-button 
+                  size="small" 
+                  type="warning" 
+                  @click="handleEdit(row)"
+                  :icon="Edit"
+                  circle
+                  title="Editar"
+                />
+                <el-button 
+                  size="small" 
+                  type="danger" 
+                  @click="handleDelete(row.Codigo)"
+                  circle
+                  title="Eliminar"
+                >
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -93,7 +108,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Close } from '@element-plus/icons-vue'
 import AppLayout from '@/components/AppLayout.vue'
 import {
   getDoctores,

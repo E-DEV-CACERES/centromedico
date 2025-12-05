@@ -57,3 +57,37 @@ export function updateUsuario(codigo: number, data: UsuarioSistemaUpdate) {
 export function deleteUsuario(codigo: number) {
   return api.delete(`/api/usuarios/${codigo}`)
 }
+
+// Funciones de backup
+export interface BackupInfo {
+  filename: string
+  size: number
+  created: string
+  modified: string
+}
+
+export interface BackupListResponse {
+  backups: BackupInfo[]
+  count: number
+}
+
+export interface BackupCreateResponse {
+  message: string
+  filename: string
+  path: string
+  timestamp: string
+}
+
+export function crearBackup() {
+  return api.post<BackupCreateResponse>('/api/usuarios/backup')
+}
+
+export function listarBackups() {
+  return api.get<BackupListResponse>('/api/usuarios/backup/list')
+}
+
+export function descargarBackup(filename: string) {
+  return api.get(`/api/usuarios/backup/download/${filename}`, {
+    responseType: 'blob'
+  })
+}

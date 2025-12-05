@@ -98,6 +98,11 @@ class CitaBase(BaseModel):
     Estado: Optional[str] = "Programada"
     Motivo: Optional[str] = None
     Observaciones: Optional[str] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class CitaCreate(CitaBase):
@@ -130,6 +135,10 @@ class ConsultaBase(BaseModel):
     Fecha_de_Consulta: Optional[datetime] = None
     Diagnostico: Optional[str] = None
     Estado: Optional[str] = "Programada"
+    Examenes_Solicitados: Optional[bool] = False
+    Examenes_Descripcion: Optional[str] = None
+    Examenes_Sugeridos: Optional[bool] = False
+    Examenes_Sugeridos_Descripcion: Optional[str] = None
 
 
 class ConsultaCreate(ConsultaBase):
@@ -143,43 +152,13 @@ class ConsultaUpdate(BaseModel):
     Fecha_de_Consulta: Optional[datetime] = None
     Diagnostico: Optional[str] = None
     Estado: Optional[str] = None
+    Examenes_Solicitados: Optional[bool] = None
+    Examenes_Descripcion: Optional[str] = None
+    Examenes_Sugeridos: Optional[bool] = None
+    Examenes_Sugeridos_Descripcion: Optional[str] = None
 
 
 class Consulta(ConsultaBase):
-    Codigo: int
-    Fecha_Creacion: Optional[datetime] = None
-    Fecha_Modificacion: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-# ==================== FACTURACIÓN ====================
-class FacturacionBase(BaseModel):
-    Codigo_Paciente: int
-    Codigo_Consulta: Optional[int] = None
-    Monto: float
-    Metodo_Pago: Optional[str] = None
-    Estado_Pago: Optional[str] = "Pendiente"
-    Numero_Factura: Optional[str] = None
-    Fecha_Factura: Optional[datetime] = None
-
-
-class FacturacionCreate(FacturacionBase):
-    pass
-
-
-class FacturacionUpdate(BaseModel):
-    Codigo_Paciente: Optional[int] = None
-    Codigo_Consulta: Optional[int] = None
-    Monto: Optional[float] = None
-    Metodo_Pago: Optional[str] = None
-    Estado_Pago: Optional[str] = None
-    Numero_Factura: Optional[str] = None
-    Fecha_Factura: Optional[datetime] = None
-
-
-class Facturacion(FacturacionBase):
     Codigo: int
     Fecha_Creacion: Optional[datetime] = None
     Fecha_Modificacion: Optional[datetime] = None
