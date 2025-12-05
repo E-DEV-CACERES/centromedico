@@ -1,0 +1,349 @@
+{
+	"info": {
+		"_postman_id": "doctores-citas-recetas-collection",
+		"name": "Sistema Centro Médico - Doctores, Citas y Recetas",
+		"description": "Colección de endpoints para gestión de doctores, citas y recetas",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Doctores",
+			"item": [
+				{
+					"name": "Listar Doctores",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/doctores?especialidad=&estado=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores"],
+							"query": [
+								{
+									"key": "especialidad",
+									"value": "",
+									"description": "Filtrar por especialidad"
+								},
+								{
+									"key": "estado",
+									"value": "",
+									"description": "Filtrar por estado (Activo, Inactivo)"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Doctor por Código",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/doctores/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Doctor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Nombre\": \"Dr. Carlos\",\n  \"Apellidos\": \"Rodríguez Martínez\",\n  \"Especialidad\": \"Cardiología\",\n  \"Direccion\": \"Av. Médica 123, Clínica Central\",\n  \"Correo\": \"carlos.rodriguez@clinica.com\",\n  \"Genero\": \"Masculino\",\n  \"Numero_Celular\": 5551234567,\n  \"Numero_Colegiado\": \"COL-001\",\n  \"Fecha_Contratacion\": \"2020-01-15\",\n  \"Estado\": \"Activo\",\n  \"Salario\": 15000.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/doctores",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores"]
+						}
+					}
+				},
+				{
+					"name": "Crear Doctor (Mínimo)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Nombre\": \"Dra. Ana\",\n  \"Apellidos\": \"García López\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/doctores",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Doctor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Especialidad\": \"Cardiología Avanzada\",\n  \"Estado\": \"Activo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/doctores/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Doctor",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/doctores/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "doctores", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Citas",
+			"item": [
+				{
+					"name": "Listar Citas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/citas?codigo_paciente=&codigo_doctor=&estado=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "citas"],
+							"query": [
+								{
+									"key": "codigo_paciente",
+									"value": "",
+									"description": "Filtrar por paciente"
+								},
+								{
+									"key": "codigo_doctor",
+									"value": "",
+									"description": "Filtrar por doctor"
+								},
+								{
+									"key": "estado",
+									"value": "",
+									"description": "Filtrar por estado"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Cita por Código",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/citas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "citas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Cita",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Codigo_Paciente\": 1,\n  \"Codigo_Doctor\": 1,\n  \"Fecha_Hora\": \"2024-12-20T10:00:00\",\n  \"Estado\": \"Programada\",\n  \"Motivo\": \"Consulta de rutina\",\n  \"Observaciones\": \"Primera consulta del paciente\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/citas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "citas"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Cita",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Estado\": \"Completada\",\n  \"Observaciones\": \"Consulta completada exitosamente\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/citas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "citas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Cita",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/citas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "citas", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Recetas",
+			"item": [
+				{
+					"name": "Listar Recetas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/recetas?codigo_paciente=&codigo_doctor=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas"],
+							"query": [
+								{
+									"key": "codigo_paciente",
+									"value": "",
+									"description": "Filtrar por paciente"
+								},
+								{
+									"key": "codigo_doctor",
+									"value": "",
+									"description": "Filtrar por doctor"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Receta por Código",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/recetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Receta",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Codigo_Paciente\": 1,\n  \"Codigo_Doctor\": 1,\n  \"Codigo_Consulta\": null,\n  \"Nombre_Paciente\": \"Juan Pérez García\",\n  \"Fecha_Receta\": \"2024-12-15T10:00:00\",\n  \"Medicamento\": \"Aspirina 100mg\",\n  \"Instrucciones\": \"Tomar 1 tableta cada 8 horas después de las comidas. Duración: 7 días.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/recetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas"]
+						}
+					}
+				},
+				{
+					"name": "Crear Receta (Mínimo)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Codigo_Paciente\": 1,\n  \"Codigo_Doctor\": 1,\n  \"Medicamento\": \"Paracetamol 500mg\",\n  \"Instrucciones\": \"Tomar cada 6 horas si hay fiebre\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/recetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Receta",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Instrucciones\": \"Tomar 1 tableta cada 12 horas. Actualizado.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/recetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Receta",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/recetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "recetas", "1"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}

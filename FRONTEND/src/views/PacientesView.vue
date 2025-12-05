@@ -10,7 +10,16 @@
       </div>
 
       <el-card>
-        <el-table :data="pacientes" v-loading="loading" stripe>
+        <div v-if="!loading && !hasPacientes" class="text-center py-8 text-gray-500">
+          <p>No hay pacientes registrados</p>
+        </div>
+        <el-table 
+          v-else
+          :data="pacientes" 
+          v-loading="loading" 
+          stripe
+          empty-text="No hay datos"
+        >
           <el-table-column prop="Codigo" label="Código" width="100" />
           <el-table-column prop="Nombre" label="Nombre" />
           <el-table-column prop="Apellidos" label="Apellidos" />
@@ -31,8 +40,9 @@
       <!-- Dialog para crear/editar -->
       <el-dialog
         v-model="dialogVisible"
-        :title="isEdit ? 'Editar Paciente' : 'Nuevo Paciente'"
+        :title="dialogTitle"
         width="600px"
+        :close-on-click-modal="false"
       >
         <el-form :model="form" label-width="150px">
           <el-form-item label="Nombre" required>
@@ -84,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import AppLayout from '@/components/AppLayout.vue'
@@ -97,39 +107,35 @@ import {
   type PacienteCreate
 } from '@/services/pacientes'
 
+// Estado reactivo
 const pacientes = ref<Paciente[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
-const form = ref<PacienteCreate & { Codigo?: number }>({
-  Nombre: '',
-  Apellidos: '',
-  Edad: '',
-  Direccion: '',
-  Numero_Celular: undefined,
-  Fecha_Nacimiento: undefined,
-  Tipo_Sangre: '',
-  Alergias: '',
-  Contacto_Emergencia: '',
-  Telefono_Emergencia: undefined,
-  Codigo_Seguro: undefined
-})
+const form = ref<PacienteCreate & { Codigo?: number }>(createEmptyForm())
 
-async function loadPacientes() {
-  loading.value = true
-  try {
-    const response = await getPacientes()
-    pacientes.value = response.data
-  } catch (error) {
-    ElMessage.error('Error al cargar pacientes')
-  } finally {
-    loading.value = false
-  }
-}
+// Computed properties
+const hasPacientes = computed(() => pacientes.value.length > 0)
+const dialogTitle = computed(() => isEdit.value ? 'Editar Paciente' : 'Nuevo Paciente')
 
-function handleCreate() {
-  isEdit.value = false
-  form.value = {
+// Constantes
+const MESSAGES = {
+  LOAD_ERROR: 'Error al cargar pacientes',
+  SAVE_ERROR: 'Error al guardar paciente',
+  DELETE_ERROR: 'Error al eliminar paciente',
+  DELETE_SUCCESS: 'Paciente eliminado correctamente',
+  UPDATE_SUCCESS: 'Paciente actualizado correctamente',
+  CREATE_SUCCESS: 'Paciente creado correctamente',
+  VALIDATION_REQUIRED: 'Nombre y Apellidos son requeridos',
+  DELETE_CONFIRM: '¿Está seguro de eliminar este paciente?',
+  NO_PATIENTS: 'No hay pacientes registrados'
+} as const
+
+/**
+ * Crea un formulario vacío con valores por defecto
+ */
+function createEmptyForm(): PacienteCreate & { Codigo?: number } {
+  return {
     Nombre: '',
     Apellidos: '',
     Edad: '',
@@ -142,51 +148,121 @@ function handleCreate() {
     Telefono_Emergencia: undefined,
     Codigo_Seguro: undefined
   }
+}
+
+/**
+ * Carga la lista de pacientes desde el servidor
+ */
+async function loadPacientes(): Promise<void> {
+  loading.value = true
+  try {
+    const response = await getPacientes()
+    
+    if (Array.isArray(response.data)) {
+      pacientes.value = response.data
+    } else {
+      ElMessage.error('Error: Los datos recibidos no tienen el formato esperado')
+      pacientes.value = []
+    }
+  } catch (error: unknown) {
+    handleError(error, MESSAGES.LOAD_ERROR)
+    pacientes.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * Maneja errores de forma centralizada
+ */
+function handleError(error: unknown, defaultMessage: string): void {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const axiosError = error as { response?: { data?: { detail?: string; message?: string } } }
+    const errorMessage = axiosError.response?.data?.detail || 
+                        axiosError.response?.data?.message || 
+                        defaultMessage
+    ElMessage.error(errorMessage)
+  } else {
+    ElMessage.error(defaultMessage)
+  }
+}
+
+/**
+ * Abre el diálogo para crear un nuevo paciente
+ */
+function handleCreate(): void {
+  isEdit.value = false
+  form.value = createEmptyForm()
   dialogVisible.value = true
 }
 
-function handleEdit(row: Paciente) {
+/**
+ * Abre el diálogo para editar un paciente existente
+ */
+function handleEdit(row: Paciente): void {
   isEdit.value = true
   form.value = { ...row }
   dialogVisible.value = true
 }
 
-async function handleSubmit() {
-  if (!form.value.Nombre || !form.value.Apellidos) {
-    ElMessage.warning('Nombre y Apellidos son requeridos')
+/**
+ * Valida el formulario antes de enviar
+ */
+function validateForm(): boolean {
+  if (!form.value.Nombre?.trim() || !form.value.Apellidos?.trim()) {
+    ElMessage.warning(MESSAGES.VALIDATION_REQUIRED)
+    return false
+  }
+  return true
+}
+
+/**
+ * Guarda o actualiza un paciente
+ */
+async function handleSubmit(): Promise<void> {
+  if (!validateForm()) {
     return
   }
 
   try {
     if (isEdit.value && form.value.Codigo) {
       await updatePaciente(form.value.Codigo, form.value)
-      ElMessage.success('Paciente actualizado correctamente')
+      ElMessage.success(MESSAGES.UPDATE_SUCCESS)
     } else {
       await createPaciente(form.value)
-      ElMessage.success('Paciente creado correctamente')
+      ElMessage.success(MESSAGES.CREATE_SUCCESS)
     }
     dialogVisible.value = false
-    loadPacientes()
-  } catch (error) {
-    ElMessage.error('Error al guardar paciente')
+    await loadPacientes()
+  } catch (error: unknown) {
+    handleError(error, MESSAGES.SAVE_ERROR)
   }
 }
 
-async function handleDelete(codigo: number) {
+/**
+ * Elimina un paciente después de confirmación
+ */
+async function handleDelete(codigo: number): Promise<void> {
   try {
-    await ElMessageBox.confirm('¿Está seguro de eliminar este paciente?', 'Confirmar', {
-      type: 'warning'
+    await ElMessageBox.confirm(MESSAGES.DELETE_CONFIRM, 'Confirmar', {
+      type: 'warning',
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
     })
+    
     await deletePaciente(codigo)
-    ElMessage.success('Paciente eliminado correctamente')
-    loadPacientes()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('Error al eliminar paciente')
+    ElMessage.success(MESSAGES.DELETE_SUCCESS)
+    await loadPacientes()
+  } catch (error: unknown) {
+    // El usuario canceló la acción
+    if (error === 'cancel') {
+      return
     }
+    handleError(error, MESSAGES.DELETE_ERROR)
   }
 }
 
+// Lifecycle hooks
 onMounted(() => {
   loadPacientes()
 })

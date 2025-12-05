@@ -16,6 +16,22 @@ if not logger.handlers:
 router = APIRouter()
 
 
+def row_to_dict(row) -> dict:
+    """Convierte un Row de SQLite a un diccionario"""
+    if row is None:
+        return None
+    result = {}
+    for key in row.keys():
+        value = row[key]
+        # Convertir fechas de formato YYYY-MM-DD a datetime ISO si es necesario
+        if key in ['Fecha_Nacimiento', 'Fecha_Creacion', 'Fecha_Modificacion'] and value:
+            if isinstance(value, str) and len(value) == 10 and value.count('-') == 2:
+                # Es una fecha sin hora, agregar hora 00:00:00 para convertir a datetime
+                value = f"{value}T00:00:00"
+        result[key] = value
+    return result
+
+
 @router.get("/", response_model=List[Paciente])
 async def listar_pacientes(
     db: Connection = Depends(get_db),
@@ -46,7 +62,7 @@ async def listar_pacientes(
         
         cursor.execute(query, params)
         pacientes = cursor.fetchall()
-        return [dict(row) for row in pacientes] if pacientes else []
+        return [row_to_dict(row) for row in pacientes] if pacientes else []
     
     except OperationalError as e:
         logger.error(f"Error de base de datos al listar pacientes: {e}")
@@ -76,7 +92,7 @@ async def obtener_paciente(codigo: int, db: Connection = Depends(get_db)):
                 detail=f"Paciente con código {codigo} no encontrado"
             )
         
-        return dict(paciente)
+        return row_to_dict(paciente)
     
     except HTTPException:
         raise
@@ -142,7 +158,7 @@ async def crear_paciente(paciente: PacienteCreate, db: Connection = Depends(get_
         nuevo_paciente = cursor.fetchone()
         
         logger.info(f"Paciente {codigo} creado exitosamente")
-        return dict(nuevo_paciente)
+        return row_to_dict(nuevo_paciente)
     
     except HTTPException:
         db.rollback()
@@ -221,7 +237,7 @@ async def actualizar_paciente(
         paciente_actualizado = cursor.fetchone()
         
         logger.info(f"Paciente {codigo} actualizado exitosamente")
-        return dict(paciente_actualizado)
+        return row_to_dict(paciente_actualizado)
     
     except HTTPException:
         db.rollback()

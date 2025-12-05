@@ -52,7 +52,8 @@ async def listar_doctores(
         
         cursor.execute(query, params)
         doctores = cursor.fetchall()
-        return [dict(row) for row in doctores] if doctores else []
+        # Convertir Row objects a diccionarios
+        return [{key: row[key] for key in row.keys()} for row in doctores] if doctores else []
     
     except OperationalError as e:
         logger.error(f"Error de base de datos al listar doctores: {e}")

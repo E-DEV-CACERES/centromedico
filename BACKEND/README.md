@@ -19,17 +19,59 @@ API REST para la gestión de un centro médico desarrollada con FastAPI y SQLite
 
 ## 🔧 Instalación
 
-1. Instalar dependencias:
+### Opción 1: Usando el script de inicio (Recomendado)
+
+**Windows:**
+```bash
+cd BACKEND
+iniciar_api.bat
+```
+
+**Linux/Mac:**
+```bash
+cd BACKEND
+chmod +x iniciar_api.sh
+./iniciar_api.sh
+```
+
+El script automáticamente:
+- ✅ Crea el entorno virtual si no existe
+- ✅ Instala las dependencias necesarias
+- ✅ Inicia el servidor FastAPI
+
+### Opción 2: Instalación manual
+
+1. Crear entorno virtual:
+```bash
+cd BACKEND
+python -m venv venv
+```
+
+2. Activar entorno virtual:
+   - **Windows:** `venv\Scripts\activate`
+   - **Linux/Mac:** `source venv/bin/activate`
+
+3. Instalar dependencias:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Verificar que la base de datos `v1siscentro.db` existe en el directorio raíz
+4. Verificar que la base de datos `v1siscentro.db` existe en el directorio BACKEND
 
 ## 🏃 Ejecutar la API
 
+### Con el script (Recomendado):
 ```bash
-uvicorn main:app --reload
+# Windows
+iniciar_api.bat
+
+# Linux/Mac
+./iniciar_api.sh
+```
+
+### Manualmente:
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 La API estará disponible en:
@@ -124,9 +166,54 @@ sis-centromev1/
 │       └── usuarios.py
 ├── main.py                  # Aplicación principal FastAPI
 ├── requirements.txt         # Dependencias
+├── crear_admin.py           # Script para crear usuario administrador
+├── crear_admin.bat          # Script batch para Windows
 ├── v1siscentro.db          # Base de datos SQLite
 └── README.md
 ```
+
+## 👤 Usuario Administrador
+
+Para crear el usuario administrador inicial del sistema:
+
+### Opción 1: Usando el script (Recomendado)
+
+**Windows:**
+```bash
+cd BACKEND
+crear_admin.bat
+```
+
+**Linux/Mac:**
+```bash
+cd BACKEND
+python crear_admin.py
+```
+
+### Opción 2: Usando la API
+
+Puedes crear el usuario administrador mediante el endpoint:
+```bash
+POST /api/usuarios
+```
+
+Con el siguiente JSON:
+```json
+{
+  "Usuario": "admin",
+  "Contrasena": "admin123",
+  "Rol": "Admin",
+  "Activo": 1
+}
+```
+
+### Credenciales por defecto
+
+- **Usuario**: `admin`
+- **Contraseña**: `admin123`
+- **Rol**: `Admin`
+
+⚠️ **IMPORTANTE**: Cambia la contraseña después del primer inicio de sesión.
 
 ## 🔒 Seguridad
 

@@ -3,7 +3,7 @@ Router para gestión de usuarios del sistema
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlite3 import Connection, IntegrityError, OperationalError
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from app.database import get_db
 from app.models import UsuarioSistema, UsuarioSistemaCreate, UsuarioSistemaUpdate
 from datetime import datetime
@@ -14,6 +14,42 @@ if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
+
+
+def row_to_dict(row) -> Dict[str, Any]:
+    """Convierte un Row de SQLite a un diccionario, manejando None y tipos correctamente"""
+    if row is None:
+        return None
+    result = {}
+    for key in row.keys():
+        value = row[key]
+        # Convertir None a None explícitamente, mantener otros valores
+        result[key] = value
+    return result
+
+
+def verificar_tabla_usuarios(cursor):
+    """Verifica si la tabla usuarios_sistema existe, si no, la crea"""
+    cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='usuarios_sistema'
+    """)
+    if not cursor.fetchone():
+        logger.warning("La tabla usuarios_sistema no existe. Creándola...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios_sistema (
+                Codigo INTEGER PRIMARY KEY AUTOINCREMENT,
+                Usuario TEXT NOT NULL UNIQUE,
+                Contrasena TEXT NOT NULL,
+                Codigo_Doctor INTEGER,
+                Rol TEXT DEFAULT 'Recepcionista',
+                Activo INTEGER DEFAULT 1,
+                Ultimo_Acceso DATETIME,
+                Fecha_Creacion DATETIME,
+                Fecha_Modificacion DATETIME,
+                FOREIGN KEY (Codigo_Doctor) REFERENCES doctor(Codigo)
+            )
+        """)
 
 
 @router.get("/", response_model=List[UsuarioSistema])
@@ -31,6 +67,10 @@ async def listar_usuarios(
     try:
         cursor = db.cursor()
         
+        # Verificar y crear tabla si no existe
+        verificar_tabla_usuarios(cursor)
+        db.commit()
+        
         query = "SELECT * FROM usuarios_sistema WHERE 1=1"
         params = []
         
@@ -46,19 +86,19 @@ async def listar_usuarios(
         
         cursor.execute(query, params)
         usuarios = cursor.fetchall()
-        return [dict(row) for row in usuarios] if usuarios else []
+        return [row_to_dict(row) for row in usuarios] if usuarios else []
     
     except OperationalError as e:
-        logger.error(f"Error de base de datos al listar usuarios: {e}")
+        logger.error(f"Error de base de datos al listar usuarios: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al acceder a la base de datos"
+            detail=f"Error al acceder a la base de datos: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"Error inesperado al listar usuarios: {e}")
+        logger.error(f"Error inesperado al listar usuarios: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error interno del servidor"
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
 
@@ -67,6 +107,11 @@ async def obtener_usuario(codigo: int, db: Connection = Depends(get_db)):
     """Obtener un usuario por código"""
     try:
         cursor = db.cursor()
+        
+        # Verificar y crear tabla si no existe
+        verificar_tabla_usuarios(cursor)
+        db.commit()
+        
         cursor.execute("SELECT * FROM usuarios_sistema WHERE Codigo = ?", (codigo,))
         usuario = cursor.fetchone()
         
@@ -76,15 +121,15 @@ async def obtener_usuario(codigo: int, db: Connection = Depends(get_db)):
                 detail=f"Usuario con código {codigo} no encontrado"
             )
         
-        return dict(usuario)
+        return row_to_dict(usuario)
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error al obtener usuario {codigo}: {e}")
+        logger.error(f"Error al obtener usuario {codigo}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al obtener el usuario"
+            detail=f"Error al obtener el usuario: {str(e)}"
         )
 
 
@@ -101,6 +146,10 @@ async def crear_usuario(usuario: UsuarioSistemaCreate, db: Connection = Depends(
     cursor = db.cursor()
     
     try:
+        # Verificar y crear tabla si no existe
+        verificar_tabla_usuarios(cursor)
+        db.commit()
+        
         # Validar que el nombre de usuario no existe
         cursor.execute("SELECT Codigo FROM usuarios_sistema WHERE Usuario = ?", (usuario.Usuario,))
         if cursor.fetchone():
@@ -131,12 +180,15 @@ async def crear_usuario(usuario: UsuarioSistemaCreate, db: Connection = Depends(
         # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         # contrasena_hash = pwd_context.hash(usuario.Contrasena)
         
+        fecha_actual = datetime.now().isoformat()
         datos = {
             "Usuario": usuario.Usuario,
             "Contrasena": usuario.Contrasena,  # TODO: Hashear con bcrypt en producción
             "Codigo_Doctor": usuario.Codigo_Doctor,
-            "Rol": usuario.Rol or "Usuario",
-            "Activo": usuario.Activo if usuario.Activo is not None else True
+            "Rol": usuario.Rol or "Recepcionista",
+            "Activo": 1 if (usuario.Activo is None or usuario.Activo == 1) else 0,
+            "Fecha_Creacion": fecha_actual,
+            "Fecha_Modificacion": fecha_actual
         }
         
         # Construir query de forma segura
@@ -156,8 +208,14 @@ async def crear_usuario(usuario: UsuarioSistemaCreate, db: Connection = Depends(
         cursor.execute("SELECT * FROM usuarios_sistema WHERE Codigo = ?", (codigo,))
         nuevo_usuario = cursor.fetchone()
         
+        if not nuevo_usuario:
+            raise HTTPException(
+                status_code=500,
+                detail="Error al recuperar el usuario creado"
+            )
+        
         logger.info(f"Usuario {codigo} ({usuario.Usuario}) creado exitosamente")
-        return dict(nuevo_usuario)
+        return row_to_dict(nuevo_usuario)
     
     except HTTPException:
         db.rollback()
@@ -171,10 +229,10 @@ async def crear_usuario(usuario: UsuarioSistemaCreate, db: Connection = Depends(
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"Error inesperado al crear usuario: {e}")
+        logger.error(f"Error inesperado al crear usuario: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al crear el usuario"
+            detail=f"Error al crear el usuario: {str(e)}"
         )
 
 
@@ -192,6 +250,10 @@ async def actualizar_usuario(
     cursor = db.cursor()
     
     try:
+        # Verificar y crear tabla si no existe
+        verificar_tabla_usuarios(cursor)
+        db.commit()
+        
         # Verificar que existe
         cursor.execute("SELECT * FROM usuarios_sistema WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
@@ -256,8 +318,14 @@ async def actualizar_usuario(
         cursor.execute("SELECT * FROM usuarios_sistema WHERE Codigo = ?", (codigo,))
         usuario_actualizado = cursor.fetchone()
         
+        if not usuario_actualizado:
+            raise HTTPException(
+                status_code=500,
+                detail="Error al recuperar el usuario actualizado"
+            )
+        
         logger.info(f"Usuario {codigo} actualizado exitosamente")
-        return dict(usuario_actualizado)
+        return row_to_dict(usuario_actualizado)
     
     except HTTPException:
         db.rollback()
@@ -271,10 +339,10 @@ async def actualizar_usuario(
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"Error inesperado al actualizar usuario {codigo}: {e}")
+        logger.error(f"Error inesperado al actualizar usuario {codigo}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al actualizar el usuario"
+            detail=f"Error al actualizar el usuario: {str(e)}"
         )
 
 
@@ -289,6 +357,10 @@ async def eliminar_usuario(codigo: int, db: Connection = Depends(get_db)):
     cursor = db.cursor()
     
     try:
+        # Verificar y crear tabla si no existe
+        verificar_tabla_usuarios(cursor)
+        db.commit()
+        
         # Verificar que existe
         cursor.execute("SELECT Codigo FROM usuarios_sistema WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
@@ -315,8 +387,8 @@ async def eliminar_usuario(codigo: int, db: Connection = Depends(get_db)):
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"Error al eliminar usuario {codigo}: {e}")
+        logger.error(f"Error al eliminar usuario {codigo}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al eliminar el usuario"
+            detail=f"Error al eliminar el usuario: {str(e)}"
         )

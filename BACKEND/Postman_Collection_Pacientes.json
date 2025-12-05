@@ -1,0 +1,134 @@
+{
+	"info": {
+		"_postman_id": "pacientes-collection",
+		"name": "Sistema Centro Médico - Pacientes",
+		"description": "Colección de endpoints para gestión de pacientes",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Listar Pacientes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/pacientes?nombre=&apellidos=",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes"],
+					"query": [
+						{
+							"key": "nombre",
+							"value": "",
+							"description": "Filtrar por nombre (búsqueda parcial)"
+						},
+						{
+							"key": "apellidos",
+							"value": "",
+							"description": "Filtrar por apellidos (búsqueda parcial)"
+						}
+					]
+				},
+				"description": "Listar todos los pacientes con filtros opcionales"
+			}
+		},
+		{
+			"name": "Obtener Paciente por Código",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/pacientes/1",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes", "1"]
+				},
+				"description": "Obtener un paciente específico por su código"
+			}
+		},
+		{
+			"name": "Crear Paciente",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"Nombre\": \"Juan\",\n  \"Apellidos\": \"Pérez García\",\n  \"Edad\": \"35\",\n  \"Direccion\": \"Calle Principal 123, Ciudad\",\n  \"Numero_Celular\": 1234567890,\n  \"Fecha_Nacimiento\": \"1989-05-15T00:00:00\",\n  \"Tipo_Sangre\": \"O+\",\n  \"Alergias\": \"Penicilina, Polen\",\n  \"Contacto_Emergencia\": \"María Pérez\",\n  \"Telefono_Emergencia\": 9876543210,\n  \"Codigo_Seguro\": null\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/pacientes",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes"]
+				},
+				"description": "Crear un nuevo paciente en el sistema"
+			}
+		},
+		{
+			"name": "Crear Paciente (Mínimo)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"Nombre\": \"María\",\n  \"Apellidos\": \"González López\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/pacientes",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes"]
+				},
+				"description": "Crear un paciente con solo los campos requeridos (Nombre y Apellidos)"
+			}
+		},
+		{
+			"name": "Actualizar Paciente",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"Direccion\": \"Nueva Dirección 456\",\n  \"Numero_Celular\": 1111111111,\n  \"Alergias\": \"Ninguna\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/pacientes/1",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes", "1"]
+				},
+				"description": "Actualizar información de un paciente existente"
+			}
+		},
+		{
+			"name": "Eliminar Paciente",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/pacientes/1",
+					"host": ["{{base_url}}"],
+					"path": ["api", "pacientes", "1"]
+				},
+				"description": "Eliminar un paciente del sistema"
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}

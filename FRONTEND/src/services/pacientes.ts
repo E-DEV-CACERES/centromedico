@@ -46,7 +46,7 @@ export interface PacienteUpdate {
 }
 
 export function getPacientes() {
-  return api.get<Paciente[]>('/api/pacientes')
+  return api.get<Paciente[]>('/api/pacientes/')
 }
 
 export function getPaciente(codigo: number) {

@@ -57,6 +57,24 @@
           <h1 class="text-2xl font-semibold text-gray-800">
             {{ pageTitle }}
           </h1>
+          <div class="flex items-center gap-4">
+            <el-dropdown v-if="authStore.usuario" @command="handleCommand">
+              <span class="flex items-center gap-2 cursor-pointer">
+                <el-icon><UserFilled /></el-icon>
+                <span class="text-sm">{{ authStore.usuario.Usuario }}</span>
+                <span class="text-xs text-gray-500">({{ authStore.usuario.Rol }})</span>
+                <el-icon><ArrowDown /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="logout">
+                    <el-icon><SwitchButton /></el-icon>
+                    Cerrar Sesión
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </div>
       </el-header>
       <el-main class="bg-gray-50">
@@ -68,7 +86,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 import {
   House,
   User,
@@ -79,13 +98,38 @@ import {
   Notebook,
   Files,
   Search,
-  UserFilled
+  UserFilled,
+  ArrowDown,
+  SwitchButton
 } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || 'Sistema')
+
+async function handleCommand(command: string) {
+  if (command === 'logout') {
+    try {
+      await ElMessageBox.confirm(
+        '¿Está seguro que desea cerrar sesión?',
+        'Confirmar',
+        {
+          confirmButtonText: 'Cerrar Sesión',
+          cancelButtonText: 'Cancelar',
+          type: 'warning'
+        }
+      )
+      await authStore.logout()
+      router.push('/login')
+    } catch {
+      // Usuario canceló
+    }
+  }
+}
 </script>
 
 <style scoped>
