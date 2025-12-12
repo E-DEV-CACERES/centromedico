@@ -19,7 +19,53 @@ API REST para la gestión de un centro médico desarrollada con FastAPI y SQLite
 
 ## 🔧 Instalación
 
-### Opción 1: Usando el script de inicio (Recomendado)
+### ⚡ Instalación Automatizada (Recomendada para Primera Vez)
+
+**Windows:**
+```bash
+cd BACKEND
+instalar.bat
+```
+
+**Windows PowerShell:**
+```powershell
+cd BACKEND
+.\instalar.ps1
+```
+
+**Linux/Mac:**
+```bash
+cd BACKEND
+chmod +x instalar.sh
+./instalar.sh
+```
+
+**O directamente con Python (multiplataforma):**
+```bash
+cd BACKEND
+python instalar.py
+```
+
+El script de instalación automáticamente:
+- ✅ Verifica que Python 3.8+ esté instalado
+- ✅ Crea el entorno virtual (`venv`)
+- ✅ Instala todas las dependencias desde `requirements.txt`
+- ✅ Verifica/crea la base de datos SQLite
+- ✅ Opcionalmente ejecuta scripts de inicialización con datos de ejemplo
+
+**Instalación con datos de ejemplo:**
+```bash
+# Windows
+instalar.bat --con-datos
+
+# Linux/Mac
+./instalar.sh --con-datos
+
+# Python directo
+python instalar.py --con-datos
+```
+
+### Opción 2: Usando el script de inicio (Solo si ya está instalado)
 
 **Windows:**
 ```bash
@@ -39,7 +85,7 @@ El script automáticamente:
 - ✅ Instala las dependencias necesarias
 - ✅ Inicia el servidor FastAPI
 
-### Opción 2: Instalación manual
+### Opción 3: Instalación manual
 
 1. Crear entorno virtual:
 ```bash
@@ -158,8 +204,21 @@ sis-centromev1/
 │       └── usuarios.py
 ├── main.py                  # Aplicación principal FastAPI
 ├── requirements.txt         # Dependencias
-├── crear_admin.py           # Script para crear usuario administrador
+├── instalar.py              # Script de instalación automatizada (multiplataforma)
+├── instalar.bat             # Script de instalación para Windows
+├── instalar.sh              # Script de instalación para Linux/Mac
+├── instalar.ps1             # Script de instalación para PowerShell
+├── iniciar_api.bat          # Script para iniciar la API (Windows)
+├── iniciar_api.sh           # Script para iniciar la API (Linux/Mac)
+├── crear_usuario_acceso.py  # Script simple para crear usuario de acceso
+├── crear_usuario_acceso.bat # Script para crear usuario (Windows)
+├── crear_usuario_acceso.sh  # Script para crear usuario (Linux/Mac)
+├── crear_admin.py           # Script avanzado para crear usuario administrador
 ├── crear_admin.bat          # Script batch para Windows
+├── listar_usuarios.py       # Script para listar usuarios del sistema
+├── listar_usuarios.bat      # Script para listar usuarios (Windows)
+├── listar_usuarios.sh       # Script para listar usuarios (Linux/Mac)
+├── USUARIOS_SISTEMA.md      # Documentación de usuarios y roles
 ├── v1siscentro.db          # Base de datos SQLite
 └── README.md
 ```
@@ -168,7 +227,27 @@ sis-centromev1/
 
 Para crear el usuario administrador inicial del sistema:
 
-### Opción 1: Usando el script (Recomendado)
+### Opción 1: Script Simple (Recomendado)
+
+**Windows:**
+```bash
+cd BACKEND
+crear_usuario_acceso.bat
+```
+
+**Linux/Mac:**
+```bash
+cd BACKEND
+chmod +x crear_usuario_acceso.sh
+./crear_usuario_acceso.sh
+```
+
+**O directamente con Python:**
+```bash
+python crear_usuario_acceso.py
+```
+
+### Opción 2: Script Avanzado
 
 **Windows:**
 ```bash
@@ -206,6 +285,64 @@ Con el siguiente JSON:
 - **Rol**: `Admin`
 
 ⚠️ **IMPORTANTE**: Cambia la contraseña después del primer inicio de sesión.
+
+### Ver Usuarios del Sistema
+
+Para listar todos los usuarios registrados:
+
+**Windows:**
+```bash
+listar_usuarios.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x listar_usuarios.sh
+./listar_usuarios.sh
+```
+
+**O directamente con Python:**
+```bash
+python listar_usuarios.py
+python listar_usuarios.py --activos    # Solo usuarios activos
+python listar_usuarios.py --rol Admin # Filtrar por rol
+```
+
+📄 **Documentación completa**: Ver `USUARIOS_SISTEMA.md` para más información sobre usuarios, roles y permisos.
+
+## 🗄️ Inicializar Tablas de la Base de Datos
+
+Si encuentras errores 500 al acceder a los endpoints (especialmente `/api/citas/`), probablemente las tablas no estén creadas.
+
+### Solución Rápida
+
+**Windows:**
+```bash
+cd BACKEND
+inicializar_tablas.bat
+```
+
+**Linux/Mac:**
+```bash
+cd BACKEND
+chmod +x inicializar_tablas.sh
+./inicializar_tablas.sh
+```
+
+**O directamente con Python:**
+```bash
+python inicializar_tablas.py
+```
+
+Este script crea todas las tablas necesarias:
+- ✅ pacientes
+- ✅ doctor
+- ✅ citas
+- ✅ consultas
+- ✅ receta
+- ✅ historial_medico
+- ✅ examenes
+- ✅ usuarios_sistema
 
 ## 🔒 Seguridad
 
