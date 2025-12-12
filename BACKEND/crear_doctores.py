@@ -234,7 +234,9 @@ def crear_doctores_ejemplo():
     
     for doctor_data in DOCTORES_EJEMPLO:
         try:
-            if crear_doctor(**doctor_data):
+            # Normalizar claves a minúsculas para coincidir con los nombres de parámetros
+            normalized = {k.lower(): v for k, v in doctor_data.items()}
+            if crear_doctor(**normalized):
                 doctores_creados += 1
             else:
                 doctores_existentes += 1
@@ -329,7 +331,7 @@ Ejemplos:
     
     # Si se proporcionaron nombre y apellidos, crear un doctor específico
     if args.nombre and args.apellidos:
-        print("\n🔧 Creando doctor en el sistema...\n")
+        print("\nCreando doctor en el sistema...\n")
         try:
             crear_doctor(
                 nombre=args.nombre,
@@ -344,16 +346,16 @@ Ejemplos:
                 estado=args.estado,
                 salario=args.salario
             )
-            print("\n✨ Proceso completado.\n")
+            print("\nProceso completado.\n")
         except Exception as e:
-            print(f"\n❌ Error: {e}\n")
+            print(f"\nError: {e}\n")
             sys.exit(1)
     else:
         # Crear doctores de ejemplo
-        print("\n🔧 Creando doctores de ejemplo en el sistema...\n")
+        print("\nCreando doctores de ejemplo en el sistema...\n")
         try:
             crear_doctores_ejemplo()
-            print("\n✨ Proceso completado.\n")
+            print("\nProceso completado.\n")
         except Exception as e:
-            print(f"\n❌ Error: {e}\n")
+            print(f"\nError: {e}\n")
             sys.exit(1)

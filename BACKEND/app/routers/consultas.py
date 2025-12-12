@@ -33,7 +33,7 @@ async def listar_consultas(
     try:
         cursor = db.cursor()
         
-        query = "SELECT * FROM consultas_medicas WHERE 1=1"
+        query = "SELECT * FROM consultas WHERE 1=1"
         params = []
         
         if codigo_paciente:
@@ -83,7 +83,7 @@ async def obtener_consulta(codigo: int, db: Connection = Depends(get_db)):
     """Obtener una consulta por código"""
     try:
         cursor = db.cursor()
-        cursor.execute("SELECT * FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
         consulta = cursor.fetchone()
         
         if not consulta:
@@ -160,14 +160,14 @@ async def crear_consulta(consulta: ConsultaCreate, db: Connection = Depends(get_
         campos_str = ", ".join(campos)
         
         cursor.execute(
-            f"INSERT INTO consultas_medicas ({campos_str}) VALUES ({placeholders})",
+            f"INSERT INTO consultas ({campos_str}) VALUES ({placeholders})",
             valores
         )
         
         codigo = cursor.lastrowid
         db.commit()
         
-        cursor.execute("SELECT * FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
         nueva_consulta = cursor.fetchone()
         
         consulta_dict = dict(nueva_consulta)
@@ -211,7 +211,7 @@ async def actualizar_consulta(
     
     try:
         # Verificar que existe
-        cursor.execute("SELECT * FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
             raise HTTPException(
                 status_code=404,
@@ -219,7 +219,7 @@ async def actualizar_consulta(
             )
         
         # Obtener columnas disponibles en la tabla
-        cursor.execute("PRAGMA table_info(consultas_medicas)")
+        cursor.execute("PRAGMA table_info(consultas)")
         columnas_info = cursor.fetchall()
         columnas_disponibles = [col[1] for col in columnas_info]
         
@@ -265,29 +265,18 @@ async def actualizar_consulta(
         if "Examenes_Solicitados" in datos and datos["Examenes_Solicitados"] is not None:
             if "Examenes_Solicitados" in columnas_disponibles:
                 datos["Examenes_Solicitados"] = 1 if datos["Examenes_Solicitados"] else 0
-            else:
-                # Si la columna no existe, eliminar del diccionario
-                del datos["Examenes_Solicitados"]
         
         # Convertir Examenes_Sugeridos a entero (0 o 1) si existe y la columna existe
         if "Examenes_Sugeridos" in datos and datos["Examenes_Sugeridos"] is not None:
             if "Examenes_Sugeridos" in columnas_disponibles:
                 datos["Examenes_Sugeridos"] = 1 if datos["Examenes_Sugeridos"] else 0
-            else:
-                # Si la columna no existe, eliminar del diccionario
-                del datos["Examenes_Sugeridos"]
-        
-        # Verificar que las columnas de descripción existan
-        if "Examenes_Descripcion" in datos and "Examenes_Descripcion" not in columnas_disponibles:
-            del datos["Examenes_Descripcion"]
-        
-        if "Examenes_Sugeridos_Descripcion" in datos and "Examenes_Sugeridos_Descripcion" not in columnas_disponibles:
-            del datos["Examenes_Sugeridos_Descripcion"]
         
         # Agregar fecha de modificación
         datos["Fecha_Modificacion"] = datetime.now().isoformat()
         
         # Construir query de actualización solo con campos que existen
+        # Esto filtra automáticamente campos que no existen en la tabla, incluyendo
+        # Examenes_Solicitados, Examenes_Sugeridos y sus descripciones si no existen
         campos_validos = {k: v for k, v in datos.items() if k in columnas_disponibles}
         
         if not campos_validos:
@@ -300,14 +289,14 @@ async def actualizar_consulta(
         valores = list(campos_validos.values())
         valores.append(codigo)
         
-        query = f"UPDATE consultas_medicas SET {', '.join(campos)} WHERE Codigo = ?"
+        query = f"UPDATE consultas SET {', '.join(campos)} WHERE Codigo = ?"
         logger.info(f"Ejecutando query: {query}")
         logger.info(f"Valores: {valores}")
         
         cursor.execute(query, valores)
         db.commit()
         
-        cursor.execute("SELECT * FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
         consulta_actualizada = cursor.fetchone()
         
         if not consulta_actualizada:
@@ -357,14 +346,14 @@ async def eliminar_consulta(codigo: int, db: Connection = Depends(get_db)):
     
     try:
         # Verificar que existe
-        cursor.execute("SELECT Codigo FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT Codigo FROM consultas WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
             raise HTTPException(
                 status_code=404,
                 detail=f"Consulta con código {codigo} no encontrada"
             )
         
-        cursor.execute("DELETE FROM consultas_medicas WHERE Codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM consultas WHERE Codigo = ?", (codigo,))
         db.commit()
         
         logger.info(f"Consulta {codigo} eliminada exitosamente")

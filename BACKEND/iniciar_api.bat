@@ -65,6 +65,10 @@ echo.
 echo Presiona Ctrl+C para detener el servidor
 echo.
 
+REM Forzar UTF-8 en Python para evitar problemas de codificación en la consola
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
+
 REM Ejecutar uvicorn usando python -m para evitar problemas de rutas
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 

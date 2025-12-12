@@ -84,7 +84,7 @@ def crear_tabla_si_no_existe(cursor):
         WHERE type='table' AND name='pacientes'
     """)
     if not cursor.fetchone():
-        print("⚠️  La tabla pacientes no existe. Creándola...")
+        print("La tabla pacientes no existe. Creándola...")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS pacientes (
                 Codigo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +120,27 @@ def crear_pacientes():
         pacientes_creados = 0
         pacientes_existentes = 0
         
+        # Función para normalizar claves a las columnas esperadas
+        canonical_keys = [
+            "Nombre", "Apellidos", "Edad", "Direccion", "Numero_Celular",
+            "Fecha_Nacimiento", "Tipo_Sangre", "Alergias", "Contacto_Emergencia",
+            "Telefono_Emergencia", "Codigo_Seguro"
+        ]
+
+        def normalize_keys(data: dict):
+            mapping = {k.lower(): k for k in canonical_keys}
+            result = {}
+            for k, v in data.items():
+                key_low = k.lower()
+                if key_low in mapping:
+                    result[mapping[key_low]] = v
+                else:
+                    # keep unknown keys as-is
+                    result[k] = v
+            return result
+
         for paciente_data in PACIENTES_EJEMPLO:
+            paciente_data = normalize_keys(paciente_data)
             # Verificar si el paciente ya existe (por nombre y apellidos)
             cursor.execute(
                 "SELECT Codigo FROM pacientes WHERE Nombre = ? AND Apellidos = ?",
@@ -128,7 +148,7 @@ def crear_pacientes():
             )
             if cursor.fetchone():
                 pacientes_existentes += 1
-                print(f"⚠️  Paciente {paciente_data['Nombre']} {paciente_data['Apellidos']} ya existe. Omitiendo...")
+                print(f"Paciente {paciente_data['Nombre']} {paciente_data['Apellidos']} ya existe. Omitiendo...")
                 continue
             
             # Preparar datos
@@ -153,19 +173,19 @@ def crear_pacientes():
             conn.commit()
             
             pacientes_creados += 1
-            print(f"✅ Paciente {codigo}: {paciente_data['Nombre']} {paciente_data['Apellidos']} creado exitosamente")
+            print(f"Paciente {codigo}: {paciente_data['Nombre']} {paciente_data['Apellidos']} creado exitosamente")
         
         print("=" * 60)
-        print(f"✅ Proceso completado:")
+        print(f"Proceso completado:")
         print(f"   - Pacientes creados: {pacientes_creados}")
         print(f"   - Pacientes existentes (omitidos): {pacientes_existentes}")
         print("=" * 60)
         
     except sqlite3.Error as e:
-        print(f"❌ Error de base de datos: {e}")
+        print(f"Error de base de datos: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error inesperado: {e}")
+        print(f"Error inesperado: {e}")
         sys.exit(1)
     finally:
         if conn:
@@ -173,6 +193,6 @@ def crear_pacientes():
 
 
 if __name__ == "__main__":
-    print("\n🔧 Creando pacientes de ejemplo en el sistema...\n")
+    print("\nCreando pacientes de ejemplo en el sistema...\n")
     crear_pacientes()
-    print("\n✨ Proceso completado.\n")
+    print("\nProceso completado.\n")

@@ -65,7 +65,7 @@ def crear_tabla_si_no_existe(cursor):
         WHERE type='table' AND name='receta'
     """)
     if not cursor.fetchone():
-        print("⚠️  La tabla receta no existe. Creándola...")
+        print("La tabla receta no existe. Creándola...")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS receta (
                 Codigo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +80,7 @@ def crear_tabla_si_no_existe(cursor):
                 Fecha_Modificacion DATETIME,
                 FOREIGN KEY (Codigo_Paciente) REFERENCES pacientes(Codigo),
                 FOREIGN KEY (Codigo_Doctor) REFERENCES doctor(Codigo),
-                FOREIGN KEY (Codigo_Consulta) REFERENCES consultas_medicas(Codigo)
+                FOREIGN KEY (Codigo_Consulta) REFERENCES consultas(Codigo)
             )
         """)
 
@@ -94,16 +94,16 @@ def verificar_pacientes_doctores(cursor):
     num_doctores = cursor.fetchone()[0]
     
     if num_pacientes == 0:
-        print("⚠️  No hay pacientes en la base de datos.")
+        print("No hay pacientes en la base de datos.")
         print("   Ejecuta primero: python crear_pacientes.py")
         return False
     
     if num_doctores == 0:
-        print("⚠️  No hay doctores en la base de datos.")
+        print("No hay doctores en la base de datos.")
         print("   Ejecuta primero: python crear_doctores.py")
         return False
     
-    print(f"✅ Encontrados {num_pacientes} paciente(s) y {num_doctores} doctor(es)")
+    print(f"Encontrados {num_pacientes} paciente(s) y {num_doctores} doctor(es)")
     return True
 
 
@@ -123,8 +123,26 @@ def crear_recetas():
             sys.exit(1)
         
         recetas_creadas = 0
+
+        # Normalizar claves de receta a las columnas esperadas
+        canonical_keys = [
+            "Codigo_Paciente", "Codigo_Doctor", "Codigo_Consulta", "Nombre_Paciente",
+            "Fecha_Receta", "Medicamento", "Instrucciones"
+        ]
+
+        def normalize_keys(data: dict):
+            mapping = {k.lower(): k for k in canonical_keys}
+            result = {}
+            for k, v in data.items():
+                key_low = k.lower()
+                if key_low in mapping:
+                    result[mapping[key_low]] = v
+                else:
+                    result[k] = v
+            return result
         
         for receta_data in RECETAS_EJEMPLO:
+            receta_data = normalize_keys(receta_data)
             codigo_paciente = receta_data["Codigo_Paciente"]
             codigo_doctor = receta_data["Codigo_Doctor"]
             
@@ -132,13 +150,13 @@ def crear_recetas():
             cursor.execute("SELECT Codigo, Nombre, Apellidos FROM pacientes WHERE Codigo = ?", (codigo_paciente,))
             paciente = cursor.fetchone()
             if not paciente:
-                print(f"⚠️  Paciente {codigo_paciente} no existe. Omitiendo receta...")
+                print(f"Paciente {codigo_paciente} no existe. Omitiendo receta...")
                 continue
             
             # Verificar que doctor existe
             cursor.execute("SELECT Codigo FROM doctor WHERE Codigo = ?", (codigo_doctor,))
             if not cursor.fetchone():
-                print(f"⚠️  Doctor {codigo_doctor} no existe. Omitiendo receta...")
+                print(f"Doctor {codigo_doctor} no existe. Omitiendo receta...")
                 continue
             
             # Obtener nombre completo del paciente
@@ -172,18 +190,18 @@ def crear_recetas():
             conn.commit()
             
             recetas_creadas += 1
-            print(f"✅ Receta {codigo}: {receta_data.get('Medicamento', 'N/A')} para {nombre_paciente} creada exitosamente")
+            print(f"Receta {codigo}: {receta_data.get('Medicamento', 'N/A')} para {nombre_paciente} creada exitosamente")
         
         print("=" * 60)
-        print(f"✅ Proceso completado:")
+        print(f"Proceso completado:")
         print(f"   - Recetas creadas: {recetas_creadas}")
         print("=" * 60)
         
     except sqlite3.Error as e:
-        print(f"❌ Error de base de datos: {e}")
+        print(f"Error de base de datos: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error inesperado: {e}")
+        print(f"Error inesperado: {e}")
         sys.exit(1)
     finally:
         if conn:
@@ -191,6 +209,6 @@ def crear_recetas():
 
 
 if __name__ == "__main__":
-    print("\n🔧 Creando recetas de ejemplo en el sistema...\n")
+    print("\nCreando recetas de ejemplo en el sistema...\n")
     crear_recetas()
-    print("\n✨ Proceso completado.\n")
+    print("\nProceso completado.\n")

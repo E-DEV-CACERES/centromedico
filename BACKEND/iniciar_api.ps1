@@ -78,5 +78,9 @@ Write-Host ""
 Write-Host "Presiona Ctrl+C para detener el servidor" -ForegroundColor Yellow
 Write-Host ""
 
+# Asegurar que Python usa UTF-8 para evitar errores de codificación en la consola
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+
 # Ejecutar uvicorn usando python -m para evitar problemas de rutas
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000

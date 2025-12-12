@@ -90,8 +90,8 @@ async def listar_recetas_completas(
                 detail="La tabla de recetas no existe en la base de datos"
             )
         
-        # Verificar qué columnas de exámenes existen en consultas_medicas
-        cursor.execute("PRAGMA table_info(consultas_medicas)")
+        # Verificar qué columnas de exámenes existen en consultas
+        cursor.execute("PRAGMA table_info(consultas)")
         columnas_consulta = [col[1] for col in cursor.fetchall()]
         
         # Construir SELECT dinámicamente según las columnas disponibles
@@ -139,7 +139,7 @@ async def listar_recetas_completas(
             FROM receta r
             LEFT JOIN pacientes p ON r.Codigo_Paciente = p.Codigo
             LEFT JOIN doctor d ON r.Codigo_Doctor = d.Codigo
-            LEFT JOIN consultas_medicas c ON r.Codigo_Consulta = c.Codigo
+            LEFT JOIN consultas c ON r.Codigo_Consulta = c.Codigo
             WHERE 1=1
         """
         
@@ -291,6 +291,28 @@ async def crear_receta(receta: RecetaCreate, db: Connection = Depends(get_db)):
     cursor = db.cursor()
     
     try:
+        logger.info(f"Recibiendo solicitud para crear receta: {receta.model_dump()}")
+        
+        # Validar que se proporcionen los campos requeridos
+        if not receta.Codigo_Paciente:
+            raise HTTPException(
+                status_code=400,
+                detail="Codigo_Paciente es requerido"
+            )
+        
+        if not receta.Codigo_Doctor:
+            raise HTTPException(
+                status_code=400,
+                detail="Codigo_Doctor es requerido"
+            )
+        
+        # Validar que Medicamento esté presente (requerido para recetas)
+        if not receta.Medicamento or not receta.Medicamento.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Medicamento es requerido"
+            )
+        
         # Verificar que paciente existe
         cursor.execute("SELECT Codigo FROM pacientes WHERE Codigo = ?", (receta.Codigo_Paciente,))
         if not cursor.fetchone():
@@ -309,34 +331,67 @@ async def crear_receta(receta: RecetaCreate, db: Connection = Depends(get_db)):
         
         # Verificar que consulta existe si se proporciona
         if receta.Codigo_Consulta:
-            cursor.execute("SELECT Codigo FROM consultas_medicas WHERE Codigo = ?", (receta.Codigo_Consulta,))
+            cursor.execute("SELECT Codigo FROM consultas WHERE Codigo = ?", (receta.Codigo_Consulta,))
             if not cursor.fetchone():
                 raise HTTPException(
                     status_code=404,
                     detail=f"Consulta con código {receta.Codigo_Consulta} no encontrada"
                 )
         
-        # Preparar datos
+        # Preparar datos - asegurar que Fecha_Receta siempre tenga un valor
+        fecha_receta = datetime.now()
+        if receta.Fecha_Receta:
+            if isinstance(receta.Fecha_Receta, datetime):
+                fecha_receta = receta.Fecha_Receta
+            elif isinstance(receta.Fecha_Receta, str):
+                try:
+                    fecha_receta = datetime.fromisoformat(receta.Fecha_Receta.replace('Z', '+00:00'))
+                except ValueError:
+                    try:
+                        fecha_receta = datetime.strptime(receta.Fecha_Receta, "%Y-%m-%dT%H:%M:%S")
+                    except ValueError:
+                        fecha_receta = datetime.now()
+        
         datos = {
             "Codigo_Paciente": receta.Codigo_Paciente,
             "Codigo_Doctor": receta.Codigo_Doctor,
             "Codigo_Consulta": receta.Codigo_Consulta,
             "Nombre_Paciente": receta.Nombre_Paciente,
-            "Fecha_Receta": receta.Fecha_Receta.isoformat() if receta.Fecha_Receta else datetime.now().isoformat(),
+            "Fecha_Receta": fecha_receta.isoformat(),
             "Medicamento": receta.Medicamento,
             "Instrucciones": receta.Instrucciones
         }
         
-        # Construir query de forma segura
+        # Construir query de forma segura - filtrar None pero mantener campos opcionales
+        # Nota: Codigo_Paciente, Codigo_Doctor y Fecha_Receta son requeridos
         campos = [k for k, v in datos.items() if v is not None]
         valores = [v for v in datos.values() if v is not None]
+        
+        # Validar que tenemos al menos los campos mínimos requeridos
+        campos_requeridos = ["Codigo_Paciente", "Codigo_Doctor", "Fecha_Receta", "Medicamento"]
+        campos_faltantes = [campo for campo in campos_requeridos if campo not in campos]
+        if campos_faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Campos requeridos faltantes: {', '.join(campos_faltantes)}"
+            )
+        
         placeholders = ", ".join(["?" for _ in valores])
         campos_str = ", ".join(campos)
         
-        cursor.execute(
-            f"INSERT INTO receta ({campos_str}) VALUES ({placeholders})",
-            valores
-        )
+        logger.info(f"Insertando receta con campos: {campos_str}")
+        logger.info(f"Valores: {valores}")
+        
+        try:
+            cursor.execute(
+                f"INSERT INTO receta ({campos_str}) VALUES ({placeholders})",
+                valores
+            )
+        except Exception as insert_error:
+            logger.error(f"Error al ejecutar INSERT: {insert_error}", exc_info=True)
+            logger.error(f"Query: INSERT INTO receta ({campos_str}) VALUES ({placeholders})")
+            logger.error(f"Valores: {valores}")
+            raise
         
         codigo = cursor.lastrowid
         db.commit()
@@ -344,25 +399,38 @@ async def crear_receta(receta: RecetaCreate, db: Connection = Depends(get_db)):
         cursor.execute("SELECT * FROM receta WHERE Codigo = ?", (codigo,))
         nueva_receta = cursor.fetchone()
         
+        if not nueva_receta:
+            raise HTTPException(
+                status_code=500,
+                detail="Error al recuperar la receta creada"
+            )
+        
         logger.info(f"Receta {codigo} creada exitosamente")
         return dict(nueva_receta)
     
     except HTTPException:
         db.rollback()
         raise
-    except IntegrityError as e:
+    except ValueError as e:
         db.rollback()
-        logger.error(f"Error de integridad al crear receta: {e}")
+        logger.error(f"Error de validación de datos: {e}", exc_info=True)
         raise HTTPException(
             status_code=400,
-            detail="Error de integridad de datos. Verifica las relaciones."
+            detail=f"Error de validación: {str(e)}"
+        )
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Error de integridad al crear receta: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error de integridad de datos: {str(e)}"
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"Error inesperado al crear receta: {e}")
+        logger.error(f"Error inesperado al crear receta: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al crear la receta"
+            detail=f"Error al crear la receta: {str(e)}"
         )
 
 
@@ -410,7 +478,7 @@ async def actualizar_receta(
                 )
         
         if "Codigo_Consulta" in datos and datos["Codigo_Consulta"]:
-            cursor.execute("SELECT Codigo FROM consultas_medicas WHERE Codigo = ?", (datos["Codigo_Consulta"],))
+            cursor.execute("SELECT Codigo FROM consultas WHERE Codigo = ?", (datos["Codigo_Consulta"],))
             if not cursor.fetchone():
                 raise HTTPException(
                     status_code=404,

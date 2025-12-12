@@ -151,6 +151,6 @@ Ejemplos:
     
     args = parser.parse_args()
     
-    print("\n🔧 Creando usuario administrador del sistema...\n")
+    print("\nCreando usuario administrador del sistema...\n")
     crear_usuario_admin(username=args.usuario, password=args.password)
-    print("\n✨ Proceso completado.\n")
+    print("\nProceso completado.\n")

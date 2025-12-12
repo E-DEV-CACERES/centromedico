@@ -474,11 +474,16 @@ async def descargar_backup(filename: str):
     - **filename**: Nombre del archivo de backup a descargar
     """
     try:
-        # Validar que el nombre del archivo sea seguro (solo contiene caracteres permitidos)
-        if not filename.endswith('.db') or '..' in filename or '/' in filename or '\\' in filename:
+        # Validar que el nombre del archivo sea seguro
+        # Debe tener el prefijo 'backup_' para prevenir acceso a archivos no autorizados
+        if (not filename.startswith('backup_') or 
+            not filename.endswith('.db') or 
+            '..' in filename or 
+            '/' in filename or 
+            '\\' in filename):
             raise HTTPException(
                 status_code=400,
-                detail="Nombre de archivo inválido"
+                detail="Nombre de archivo inválido. Solo se permiten archivos de backup con prefijo 'backup_'"
             )
         
         current_dir = os.path.dirname(os.path.abspath(DATABASE_URL))

@@ -499,12 +499,16 @@ function limpiarFiltros() {
 
 function handleCreate() {
   isEdit.value = false
+  // Establecer fecha por defecto en formato correcto
+  const now = new Date()
+  const fechaDefault = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+  
   form.value = {
     Codigo_Paciente: undefined,
     Codigo_Doctor: undefined,
     Codigo_Consulta: undefined,
     Nombre_Paciente: undefined,
-    Fecha_Receta: new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0],
+    Fecha_Receta: fechaDefault,
     Medicamento: undefined,
     Instrucciones: undefined
   }
@@ -583,15 +587,25 @@ async function handleSubmit() {
     const paciente = pacientes.value.find(p => p.Codigo === form.value.Codigo_Paciente)
     const nombrePaciente = paciente ? `${paciente.Nombre} ${paciente.Apellidos}` : undefined
 
-    // Preparar datos para enviar
+    // Preparar datos para enviar - solo incluir campos con valores válidos
     const datosEnvio: RecetaCreate = {
-      Codigo_Paciente: form.value.Codigo_Paciente,
-      Codigo_Doctor: form.value.Codigo_Doctor,
-      Codigo_Consulta: form.value.Codigo_Consulta || undefined,
-      Nombre_Paciente: nombrePaciente,
-      Fecha_Receta: fechaReceta || undefined,
+      Codigo_Paciente: form.value.Codigo_Paciente!,
+      Codigo_Doctor: form.value.Codigo_Doctor!,
       Medicamento: form.value.Medicamento.trim(),
       Instrucciones: form.value.Instrucciones.trim()
+    }
+
+    // Agregar campos opcionales solo si tienen valores
+    if (form.value.Codigo_Consulta) {
+      datosEnvio.Codigo_Consulta = form.value.Codigo_Consulta
+    }
+    
+    if (nombrePaciente) {
+      datosEnvio.Nombre_Paciente = nombrePaciente
+    }
+    
+    if (fechaReceta) {
+      datosEnvio.Fecha_Receta = fechaReceta
     }
 
     console.log('Datos a enviar:', datosEnvio)

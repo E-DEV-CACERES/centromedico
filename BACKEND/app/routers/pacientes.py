@@ -8,12 +8,57 @@ from app.database import get_db
 from app.models import Paciente, PacienteCreate, PacienteUpdate
 from datetime import datetime
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
+
+
+def normalize_date_string(date_str: str) -> Optional[str]:
+    """
+    Normaliza y valida una cadena de fecha a formato ISO 8601 con hora.
+    
+    Acepta formatos como:
+    - YYYY-MM-DD (2024-01-01)
+    - YYYY-M-D (2024-1-1)
+    - YYYY-MM-D (2024-01-1)
+    - YYYY-M-DD (2024-1-01)
+    
+    Retorna None si la fecha no es válida.
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+    
+    # Patrón regex para detectar fechas en formato YYYY-MM-DD (con variaciones)
+    # Acepta: YYYY-MM-DD, YYYY-M-DD, YYYY-MM-D, YYYY-M-D
+    date_pattern = r'^(\d{4})-(\d{1,2})-(\d{1,2})$'
+    match = re.match(date_pattern, date_str.strip())
+    
+    if not match:
+        return None
+    
+    try:
+        year, month, day = match.groups()
+        # Convertir a enteros y validar
+        year = int(year)
+        month = int(month)
+        day = int(day)
+        
+        # Validar que la fecha sea realmente válida
+        # Esto lanzará ValueError si la fecha no es válida (ej: 2024-13-45, 2024-02-30)
+        datetime(year, month, day)
+        
+        # Formatear con ceros iniciales para formato estándar YYYY-MM-DD
+        normalized_date = f"{year:04d}-{month:02d}-{day:02d}"
+        # Agregar hora para formato ISO completo
+        return f"{normalized_date}T00:00:00"
+    except (ValueError, TypeError) as e:
+        # Fecha inválida (ej: 2024-13-45, 2024-02-30)
+        logger.warning(f"Fecha inválida detectada: {date_str} - {e}")
+        return None
 
 
 def row_to_dict(row) -> dict:
@@ -25,9 +70,15 @@ def row_to_dict(row) -> dict:
         value = row[key]
         # Convertir fechas de formato YYYY-MM-DD a datetime ISO si es necesario
         if key in ['Fecha_Nacimiento', 'Fecha_Creacion', 'Fecha_Modificacion'] and value:
-            if isinstance(value, str) and len(value) == 10 and value.count('-') == 2:
-                # Es una fecha sin hora, agregar hora 00:00:00 para convertir a datetime
-                value = f"{value}T00:00:00"
+            if isinstance(value, str):
+                # Intentar normalizar la fecha usando validación robusta
+                normalized = normalize_date_string(value)
+                if normalized:
+                    value = normalized
+                # Si no se puede normalizar pero ya tiene formato ISO con hora, dejarlo como está
+                elif 'T' in value or len(value) > 10:
+                    # Ya tiene formato ISO completo o datetime, dejarlo como está
+                    pass
         result[key] = value
     return result
 
@@ -279,7 +330,7 @@ async def eliminar_paciente(codigo: int, db: Connection = Depends(get_db)):
         
         # Verificar si tiene registros relacionados (opcional, para advertencia)
         cursor.execute(
-            "SELECT COUNT(*) FROM consultas_medicas WHERE Codigo_Paciente = ?",
+            "SELECT COUNT(*) FROM consultas WHERE Codigo_Paciente = ?",
             (codigo,)
         )
         consultas_count = cursor.fetchone()[0]

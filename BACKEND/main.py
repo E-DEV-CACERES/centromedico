@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException as FastAPIHTTPException
+from contextlib import asynccontextmanager
 from app.routers import pacientes, doctor, citas, consultas, receta, historial, examenes, usuarios, auth
 from sqlite3 import OperationalError, DatabaseError
 import logging
@@ -21,10 +22,51 @@ logger = logging.getLogger(__name__)
 # Configurar logging de uvicorn para ver menos ruido
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
+# Filtrar CancelledError en lifespan (son normales al cerrar el servidor)
+class CancelledErrorFilter(logging.Filter):
+    """Filtro para suprimir CancelledError en lifespan"""
+    def filter(self, record):
+        # No mostrar errores de CancelledError en el lifespan
+        if "CancelledError" in str(record.getMessage()) and "lifespan" in str(record.getMessage()):
+            return False
+        return True
+
+# Aplicar filtro a los loggers relevantes
+for logger_name in ["uvicorn.error", "uvicorn", "starlette"]:
+    logging.getLogger(logger_name).addFilter(CancelledErrorFilter())
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan handler para manejar el inicio y cierre de la aplicación.
+    Esto previene errores de CancelledError al cerrar el servidor.
+    """
+    # Startup
+    logger.info("Iniciando aplicación...")
+    try:
+        # Verificar que la base de datos existe y es accesible
+        import sqlite3
+        from app.database import DATABASE_URL
+        conn = sqlite3.connect(DATABASE_URL)
+        conn.close()
+        logger.info("Base de datos verificada correctamente")
+    except Exception as e:
+        logger.warning(f"Advertencia al verificar base de datos: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Cerrando aplicación...")
+    # Dar tiempo para que las conexiones se cierren correctamente
+    await asyncio.sleep(0.1)
+
+
 app = FastAPI(
     title="Sistema de Centro Médico API",
     description="API REST para gestión de centro médico",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configurar CORS - Debe estar antes de incluir los routers
@@ -72,7 +114,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Excluir excepciones del sistema que no deben ser manejadas
     # No manejar excepciones del sistema de asyncio o del framework
     if isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
-        # Re-lanzar estas excepciones para que el sistema las maneje correctamente
+        # Estas excepciones son normales durante el cierre del servidor
+        # No las registramos como errores
         raise
     
     # No manejar HTTPException de FastAPI (ya están manejadas)
