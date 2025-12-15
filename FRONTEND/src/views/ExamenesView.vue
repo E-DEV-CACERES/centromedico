@@ -1,11 +1,14 @@
 <template>
   <AppLayout>
     <div class="p-6">
-      <div class="mb-4">
+      <div class="mb-4 flex justify-between items-center">
         <h2 class="text-2xl font-bold text-gray-800">Gestión de Exámenes de Laboratorio</h2>
+        <el-button type="primary" @click="handleCreate">
+          <el-icon class="mr-2"><Plus /></el-icon>
+          Nuevo Examen
+        </el-button>
       </div>
 
-      <!-- Filtros -->
       <el-card class="mb-4">
         <el-form :inline="true" :model="filtros" class="demo-form-inline">
           <el-form-item label="Paciente">
@@ -59,7 +62,7 @@
         </el-form>
       </el-card>
 
-      <!-- Tabla de exámenes -->
+      
       <el-card>
         <el-table :data="examenesFiltrados" v-loading="loading" stripe>
           <el-table-column prop="Codigo" label="Código" width="100" />
@@ -82,6 +85,44 @@
             </template>
           </el-table-column>
           <el-table-column prop="Tipo_Examen" label="Tipo de Examen" min-width="200" show-overflow-tooltip />
+          <el-table-column label="Origen" width="250">
+            <template #default="{ row }">
+              <div class="flex flex-col gap-1">
+                <el-tag v-if="row.Cita_Info" type="info" size="small">
+                  <el-icon class="mr-1"><Calendar /></el-icon>
+                  Cita #{{ row.Cita_Info.Codigo }}
+                  <span v-if="row.Cita_Info.Fecha_Hora" class="ml-1 text-xs">
+                    ({{ formatearFecha(row.Cita_Info.Fecha_Hora) }})
+                  </span>
+                </el-tag>
+                <el-tag v-if="row.Consulta_Info" type="success" size="small">
+                  <el-icon class="mr-1"><Document /></el-icon>
+                  Consulta #{{ row.Consulta_Info.Codigo }}
+                  <span v-if="row.Consulta_Info.Fecha_de_Consulta" class="ml-1 text-xs">
+                    ({{ formatearFecha(row.Consulta_Info.Fecha_de_Consulta) }})
+                  </span>
+                </el-tag>
+                <span v-if="!row.Cita_Info && !row.Consulta_Info" class="text-gray-400 text-xs">Sin origen</span>
+               
+                <div v-if="row.Consulta_Info" class="mt-1 text-xs text-gray-600">
+                  <div v-if="row.Consulta_Info.Examenes_Solicitados" class="flex items-center gap-1">
+                    <span class="font-semibold">Solicitados:</span>
+                    <span>{{ row.Consulta_Info.Examenes_Descripcion || 'Sí' }}</span>
+                  </div>
+                  <div v-if="row.Consulta_Info.Examenes_Sugeridos" class="flex items-center gap-1">
+                    <span class="font-semibold">Sugeridos:</span>
+                    <span>{{ row.Consulta_Info.Examenes_Sugeridos_Descripcion || 'Sí' }}</span>
+                  </div>
+                  <div v-if="row.Consulta_Info.Estado" class="flex items-center gap-1">
+                    <span class="font-semibold">Estado Consulta:</span>
+                    <el-tag :type="row.Consulta_Info.Estado === 'Completada' ? 'success' : row.Consulta_Info.Estado === 'Cancelada' ? 'danger' : 'warning'" size="small">
+                      {{ row.Consulta_Info.Estado }}
+                    </el-tag>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="Fecha_Solicitud" label="Fecha Solicitud" width="180">
             <template #default="{ row }">
               {{ formatearFecha(row.Fecha_Solicitud) }}
@@ -138,7 +179,6 @@
           </el-table-column>
         </el-table>
 
-        <!-- Paginación -->
         <div class="mt-4 flex justify-end">
           <el-pagination
             v-model:current-page="paginacion.pagina"
@@ -152,7 +192,7 @@
         </div>
       </el-card>
 
-      <!-- Dialog para crear/editar examen -->
+    
       <el-dialog
         v-model="dialogVisible"
         :title="isEdit ? 'Editar Examen de Laboratorio' : 'Nuevo Examen de Laboratorio'"
@@ -251,7 +291,7 @@
         </template>
       </el-dialog>
 
-      <!-- Dialog para ver detalles -->
+     
       <el-dialog
         v-model="dialogDetallesVisible"
         title="Detalles del Examen de Laboratorio"
@@ -297,6 +337,42 @@
           <el-descriptions-item label="Última Modificación" v-if="examenSeleccionado.Fecha_Modificacion">
             {{ formatearFecha(examenSeleccionado.Fecha_Modificacion) }}
           </el-descriptions-item>
+         
+          <el-descriptions-item label="Consulta Asociada" v-if="examenSeleccionado.Consulta_Info" :span="2">
+            <div class="space-y-2">
+              <div><strong>Código:</strong> {{ examenSeleccionado.Consulta_Info.Codigo }}</div>
+              <div v-if="examenSeleccionado.Consulta_Info.Estado">
+                <strong>Estado:</strong> 
+                <el-tag :type="examenSeleccionado.Consulta_Info.Estado === 'Completada' ? 'success' : examenSeleccionado.Consulta_Info.Estado === 'Cancelada' ? 'danger' : 'warning'" size="small" class="ml-2">
+                  {{ examenSeleccionado.Consulta_Info.Estado }}
+                </el-tag>
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Tipo_de_Consulta">
+                <strong>Tipo:</strong> {{ examenSeleccionado.Consulta_Info.Tipo_de_Consulta }}
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Fecha_de_Consulta">
+                <strong>Fecha:</strong> {{ formatearFecha(examenSeleccionado.Consulta_Info.Fecha_de_Consulta) }}
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Examenes_Solicitados">
+                <strong>Exámenes Solicitados:</strong> 
+                <span class="ml-2">{{ examenSeleccionado.Consulta_Info.Examenes_Descripcion || 'Sí' }}</span>
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Examenes_Sugeridos">
+                <strong>Exámenes Sugeridos:</strong> 
+                <span class="ml-2">{{ examenSeleccionado.Consulta_Info.Examenes_Sugeridos_Descripcion || 'Sí' }}</span>
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Diagnostico">
+                <strong>Diagnóstico:</strong> 
+                <div class="mt-1 whitespace-pre-wrap text-sm">{{ examenSeleccionado.Consulta_Info.Diagnostico }}</div>
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Fecha_Creacion">
+                <strong>Fecha Creación Consulta:</strong> {{ formatearFecha(examenSeleccionado.Consulta_Info.Fecha_Creacion) }}
+              </div>
+              <div v-if="examenSeleccionado.Consulta_Info.Fecha_Modificacion">
+                <strong>Última Modificación Consulta:</strong> {{ formatearFecha(examenSeleccionado.Consulta_Info.Fecha_Modificacion) }}
+              </div>
+            </div>
+          </el-descriptions-item>
         </el-descriptions>
         <template #footer>
           <el-button @click="dialogDetallesVisible = false">Cerrar</el-button>
@@ -309,7 +385,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { View, Edit, Close, Printer } from '@element-plus/icons-vue'
+import { Plus, View, Edit, Close, Printer, Calendar, Document } from '@element-plus/icons-vue'
 import AppLayout from '@/components/AppLayout.vue'
 import {
   getExamenes,
@@ -321,6 +397,7 @@ import {
   type ExamenUpdate,
   type ExamenFilters
 } from '@/services/examenes'
+import { getConsultas, type Consulta } from '@/services/consultas'
 import { getPacientes, type Paciente } from '@/services/pacientes'
 import { getDoctores, type Doctor } from '@/services/doctores'
 
@@ -350,7 +427,7 @@ const form = ref<ExamenCreate & { Codigo?: number }>({
   Codigo_Paciente: 0,
   Codigo_Doctor: 0,
   Tipo_Examen: '',
-  Fecha_Solicitud: undefined,
+  Fecha_Solicitud: new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0],
   Fecha_Resultado: undefined,
   Resultado: undefined,
   Observaciones: undefined,
@@ -423,11 +500,81 @@ const examenesFiltrados = computed(() => {
 async function loadExamenes() {
   loading.value = true
   try {
-    const response = await getExamenes()
-    examenes.value = response.data
-  } catch (error) {
-    ElMessage.error('Error al cargar exámenes de laboratorio')
-    console.error('Error al cargar exámenes:', error)
+    // Cargar exámenes desde el endpoint de exámenes
+    const responseExamenes = await getExamenes()
+    let examenesDesdeEndpoint: Examen[] = []
+    
+    if (Array.isArray(responseExamenes.data)) {
+      examenesDesdeEndpoint = responseExamenes.data
+      console.log(`Exámenes cargados desde /api/examenes: ${examenesDesdeEndpoint.length}`)
+    } else {
+      console.warn('Respuesta inesperada del servidor (examenes):', responseExamenes.data)
+    }
+    
+    // Cargar exámenes desde el endpoint de consultas (Examenes_Asociados)
+    try {
+      const responseConsultas = await getConsultas()
+      let examenesDesdeConsultas: Examen[] = []
+      
+      if (Array.isArray(responseConsultas.data)) {
+        responseConsultas.data.forEach((consulta: Consulta) => {
+          if (consulta.Examenes_Asociados && Array.isArray(consulta.Examenes_Asociados)) {
+            consulta.Examenes_Asociados.forEach((examenAsociado: any) => {
+              // Agregar información de la consulta al examen
+              const examenConConsulta: Examen = {
+                ...examenAsociado,
+                Codigo_Consulta: consulta.Codigo,
+                Consulta_Info: {
+                  Codigo: consulta.Codigo,
+                  Fecha_de_Consulta: consulta.Fecha_de_Consulta,
+                  Estado: consulta.Estado,
+                  Tipo_de_Consulta: consulta.Tipo_de_Consulta,
+                  Diagnostico: consulta.Diagnostico,
+                  Examenes_Solicitados: consulta.Examenes_Solicitados,
+                  Examenes_Descripcion: consulta.Examenes_Descripcion,
+                  Examenes_Sugeridos: consulta.Examenes_Sugeridos,
+                  Examenes_Sugeridos_Descripcion: consulta.Examenes_Sugeridos_Descripcion,
+                  Fecha_Creacion: consulta.Fecha_Creacion,
+                  Fecha_Modificacion: consulta.Fecha_Modificacion
+                }
+              }
+              examenesDesdeConsultas.push(examenConConsulta)
+            })
+          }
+        })
+        console.log(`Exámenes cargados desde /api/consultas: ${examenesDesdeConsultas.length}`)
+      }
+      
+      // Combinar ambos arrays, evitando duplicados por código
+      const examenesMap = new Map<number, Examen>()
+      
+      // Primero agregar los de consultas (tienen más información)
+      examenesDesdeConsultas.forEach(examen => {
+        if (examen.Codigo) {
+          examenesMap.set(examen.Codigo, examen)
+        }
+      })
+      
+      // Luego agregar los del endpoint de exámenes (solo si no existen)
+      examenesDesdeEndpoint.forEach(examen => {
+        if (examen.Codigo && !examenesMap.has(examen.Codigo)) {
+          examenesMap.set(examen.Codigo, examen)
+        }
+      })
+      
+      examenes.value = Array.from(examenesMap.values())
+      console.log(`Total de exámenes únicos cargados: ${examenes.value.length}`)
+    } catch (errorConsultas: any) {
+      console.warn('Error al cargar exámenes desde consultas:', errorConsultas)
+      // Si falla, usar solo los del endpoint de exámenes
+      examenes.value = examenesDesdeEndpoint
+    }
+  } catch (error: any) {
+    console.error('Error completo al cargar exámenes:', error)
+    console.error('Response:', error?.response)
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.message || 'Error al cargar exámenes de laboratorio'
+    ElMessage.error(errorMessage)
+    examenes.value = []
   } finally {
     loading.value = false
   }
@@ -507,6 +654,35 @@ function limpiarFiltros() {
   }
   paginacion.value.pagina = 1
   ElMessage.info('Filtros limpiados')
+}
+
+function handleCreate() {
+  isEdit.value = false
+  // Establecer fecha por defecto en formato correcto
+  const now = new Date()
+  const fechaDefault = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+  
+  form.value = {
+    Codigo_Paciente: 0,
+    Codigo_Doctor: 0,
+    Tipo_Examen: '',
+    Fecha_Solicitud: fechaDefault,
+    Fecha_Resultado: undefined,
+    Resultado: undefined,
+    Observaciones: undefined,
+    Estado: 'Pendiente'
+  }
+  // Cargar datos si no están cargados
+  if (doctores.value.length === 0) {
+    loadDoctores()
+  }
+  if (pacientes.value.length === 0) {
+    loadPacientes()
+  }
+  dialogVisible.value = true
+  nextTick(() => {
+    formRef.value?.clearValidate()
+  })
 }
 
 function handleEdit(row: Examen) {

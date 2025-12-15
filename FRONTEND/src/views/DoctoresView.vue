@@ -9,9 +9,28 @@
         </el-button>
       </div>
 
+      <el-card class="mb-4">
+        <el-form :inline="true" :model="filtros">
+          <el-form-item label="Nro Identificación">
+            <el-input
+              v-model="filtros.numero_identificacion"
+              placeholder="Buscar por número de identificación"
+              clearable
+              style="width: 260px"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="loadDoctores">Buscar</el-button>
+            <el-button @click="limpiarFiltros">Limpiar</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
       <el-card>
-        <el-table :data="doctores" v-loading="loading" stripe>
+        <el-table :data="doctoresPaginados" v-loading="loading" stripe>
           <el-table-column prop="Codigo" label="Código" width="100" />
+          <el-table-column prop="Tipo_Identificacion" label="Tipo ID" width="120" />
+          <el-table-column prop="Numero_Identificacion" label="Nro ID" width="180" />
           <el-table-column prop="Nombre" label="Nombre" />
           <el-table-column prop="Apellidos" label="Apellidos" />
           <el-table-column prop="Especialidad" label="Especialidad" />
@@ -42,9 +61,20 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <div class="mt-4 flex justify-end" v-if="doctores.length > 0">
+          <el-pagination
+            background
+            layout="prev, pager, next, total"
+            :page-size="pageSize"
+            :current-page="currentPage"
+            :total="doctores.length"
+            @current-change="handlePageChange"
+          />
+        </div>
       </el-card>
 
-      <!-- Dialog para crear/editar -->
+      
       <el-dialog
         v-model="dialogVisible"
         :title="isEdit ? 'Editar Doctor' : 'Nuevo Doctor'"
@@ -65,6 +95,9 @@
           </el-form-item>
           <el-form-item label="Correo">
             <el-input v-model="form.Correo" type="email" />
+          </el-form-item>
+          <el-form-item label="DNI / Identidad" required>
+            <el-input v-model="form.Tipo_Identificacion" />
           </el-form-item>
           <el-form-item label="Género">
             <el-select v-model="form.Genero" placeholder="Seleccionar">
@@ -106,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Close } from '@element-plus/icons-vue'
 import AppLayout from '@/components/AppLayout.vue'
@@ -123,12 +156,17 @@ const doctores = ref<Doctor[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const filtros = ref<{ numero_identificacion?: string }>({ numero_identificacion: '' })
+const currentPage = ref(1)
+const pageSize = ref(10)
 const form = ref<DoctorCreate & { Codigo?: number }>({
   Nombre: '',
   Apellidos: '',
   Especialidad: '',
   Direccion: '',
   Correo: '',
+  Numero_Identificacion: '',
+  Tipo_Identificacion: '',
   Genero: '',
   Numero_Celular: undefined,
   Numero_Colegiado: '',
@@ -140,13 +178,32 @@ const form = ref<DoctorCreate & { Codigo?: number }>({
 async function loadDoctores() {
   loading.value = true
   try {
-    const response = await getDoctores()
+    const params: Record<string, unknown> = {}
+    if (filtros.value.numero_identificacion) {
+      params.numero_identificacion = filtros.value.numero_identificacion
+    }
+    const response = await getDoctores(params)
     doctores.value = response.data
   } catch (error) {
     ElMessage.error('Error al cargar doctores')
   } finally {
     loading.value = false
   }
+}
+
+function limpiarFiltros() {
+  filtros.value.numero_identificacion = ''
+  loadDoctores()
+}
+
+const doctoresPaginados = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return doctores.value.slice(start, end)
+})
+
+function handlePageChange(page: number) {
+  currentPage.value = page
 }
 
 function handleCreate() {
@@ -157,6 +214,8 @@ function handleCreate() {
     Especialidad: '',
     Direccion: '',
     Correo: '',
+    Numero_Identificacion: '',
+    Tipo_Identificacion: '',
     Genero: '',
     Numero_Celular: undefined,
     Numero_Colegiado: '',
@@ -176,6 +235,11 @@ function handleEdit(row: Doctor) {
 async function handleSubmit() {
   if (!form.value.Nombre || !form.value.Apellidos) {
     ElMessage.warning('Nombre y Apellidos son requeridos')
+    return
+  }
+
+  if (!form.value.Tipo_Identificacion || !form.value.Tipo_Identificacion.trim()) {
+    ElMessage.warning('El campo DNI / Identidad es requerido')
     return
   }
 

@@ -9,8 +9,34 @@
         </el-button>
       </div>
 
+      <!-- Filtros por DNI de Paciente y Doctor -->
+      <el-card class="mb-4">
+        <el-form :inline="true" :model="filtros">
+          <el-form-item label="DNI Paciente">
+            <el-input
+              v-model="filtros.dniPaciente"
+              placeholder="Buscar por DNI de paciente"
+              clearable
+              style="width: 260px"
+            />
+          </el-form-item>
+          <el-form-item label="DNI Doctor">
+            <el-input
+              v-model="filtros.dniDoctor"
+              placeholder="Buscar por DNI de doctor"
+              clearable
+              style="width: 260px"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary">Buscar</el-button>
+            <el-button @click="limpiarFiltros">Limpiar</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
       <el-card>
-        <el-table :data="consultas" v-loading="loading" stripe>
+        <el-table :data="consultasFiltradas" v-loading="loading" stripe>
           <el-table-column prop="Codigo" label="Código" width="100" />
           <el-table-column label="Paciente" width="180">
             <template #default="{ row }">
@@ -33,16 +59,29 @@
           <el-table-column prop="Tipo_de_Consulta" label="Tipo" width="150" />
           <el-table-column prop="Fecha_de_Consulta" label="Fecha de Consulta" width="180" />
           <el-table-column prop="Estado" label="Estado" width="120" />
-          <el-table-column label="Exámenes" width="180">
+          <el-table-column label="Exámenes" width="200">
             <template #default="{ row }">
               <div class="flex flex-col gap-1">
+                <!-- Exámenes de la tabla examenes asociados a esta consulta -->
+                <div v-if="row.Examenes_Asociados && row.Examenes_Asociados.length > 0" class="mb-1">
+                  <el-tag 
+                    v-for="examen in row.Examenes_Asociados" 
+                    :key="examen.Codigo"
+                    :type="examen.Estado === 'Completado' ? 'success' : examen.Estado === 'Cancelado' ? 'danger' : 'warning'"
+                    size="small"
+                    class="mr-1 mb-1"
+                  >
+                    {{ examen.Tipo_Examen }}
+                  </el-tag>
+                </div>
+                <!-- Indicadores de exámenes solicitados/sugeridos en la consulta -->
                 <el-tag v-if="row.Examenes_Solicitados" type="warning" size="small">
                   Solicitados
                 </el-tag>
                 <el-tag v-if="row.Examenes_Sugeridos" type="info" size="small">
                   Sugeridos
                 </el-tag>
-                <span v-if="!row.Examenes_Solicitados && !row.Examenes_Sugeridos" class="text-gray-400 text-xs">No</span>
+                <span v-if="(!row.Examenes_Asociados || row.Examenes_Asociados.length === 0) && !row.Examenes_Solicitados && !row.Examenes_Sugeridos" class="text-gray-400 text-xs">No</span>
               </div>
             </template>
           </el-table-column>
@@ -146,43 +185,6 @@
               placeholder="Ingrese el diagnóstico de la consulta"
             />
           </el-form-item>
-          <el-form-item label="Exámenes Solicitados">
-            <el-switch
-              v-model="form.Examenes_Solicitados"
-              active-text="Sí"
-              inactive-text="No"
-            />
-          </el-form-item>
-          <el-form-item 
-            label="Descripción de Exámenes Solicitados" 
-            v-if="form.Examenes_Solicitados"
-          >
-            <el-input
-              v-model="form.Examenes_Descripcion"
-              type="textarea"
-              :rows="3"
-              placeholder="Ej: Hemograma completo, Radiografía de tórax, Análisis de sangre..."
-            />
-          </el-form-item>
-          <el-form-item label="Exámenes Sugeridos">
-            <el-switch
-              v-model="form.Examenes_Sugeridos"
-              active-text="Sí"
-              inactive-text="No"
-            />
-            <span class="ml-2 text-sm text-gray-500">(Opcionales para el paciente)</span>
-          </el-form-item>
-          <el-form-item 
-            label="Descripción de Exámenes Sugeridos" 
-            v-if="form.Examenes_Sugeridos"
-          >
-            <el-input
-              v-model="form.Examenes_Sugeridos_Descripcion"
-              type="textarea"
-              :rows="3"
-              placeholder="Ej: Ecografía abdominal, Tomografía, Análisis de orina completo..."
-            />
-          </el-form-item>
         </el-form>
           </el-tab-pane>
           
@@ -219,6 +221,65 @@
                       size="small" 
                       type="danger" 
                       @click="handleEliminarReceta(row.Codigo)"
+                      circle
+                      title="Eliminar"
+                    >
+                      <el-icon><Close /></el-icon>
+                    </el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+          
+          <el-tab-pane label="Exámenes de Laboratorio" name="examenes">
+            <div class="mb-4 flex justify-between items-center">
+              <h3 class="text-lg font-semibold">Exámenes asociados a esta consulta</h3>
+              <el-button type="primary" size="small" @click="handleCrearExamen">
+                <el-icon class="mr-1"><Plus /></el-icon>
+                Nuevo Examen
+              </el-button>
+            </div>
+            
+            <el-table :data="examenesConsulta" v-loading="loadingExamenes" stripe>
+              <el-table-column prop="Codigo" label="Código" width="100" />
+              <el-table-column prop="Tipo_Examen" label="Tipo de Examen" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="Fecha_Solicitud" label="Fecha Solicitud" width="180">
+                <template #default="{ row }">
+                  {{ formatearFecha(row.Fecha_Solicitud) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="Fecha_Resultado" label="Fecha Resultado" width="180">
+                <template #default="{ row }">
+                  {{ formatearFecha(row.Fecha_Resultado) || 'N/A' }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="Estado" label="Estado" width="120">
+                <template #default="{ row }">
+                  <el-tag
+                    :type="row.Estado === 'Completado' ? 'success' : row.Estado === 'Cancelado' ? 'danger' : 'warning'"
+                    size="small"
+                  >
+                    {{ row.Estado || 'Pendiente' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="Resultado" label="Resultado" show-overflow-tooltip />
+              <el-table-column label="Acciones" width="160" fixed="right" align="center">
+                <template #default="{ row }">
+                  <div class="flex gap-2 justify-center">
+                    <el-button 
+                      size="small" 
+                      type="warning" 
+                      @click="handleEditarExamen(row)"
+                      :icon="Edit"
+                      circle
+                      title="Editar"
+                    />
+                    <el-button 
+                      size="small" 
+                      type="danger" 
+                      @click="handleEliminarExamen(row.Codigo)"
                       circle
                       title="Eliminar"
                     >
@@ -296,46 +357,8 @@
               placeholder="Ingrese el diagnóstico de la consulta"
             />
           </el-form-item>
-          <el-form-item label="Exámenes Solicitados">
-            <el-switch
-              v-model="form.Examenes_Solicitados"
-              active-text="Sí"
-              inactive-text="No"
-            />
-          </el-form-item>
-          <el-form-item 
-            label="Descripción de Exámenes Solicitados" 
-            v-if="form.Examenes_Solicitados"
-          >
-            <el-input
-              v-model="form.Examenes_Descripcion"
-              type="textarea"
-              :rows="3"
-              placeholder="Ej: Hemograma completo, Radiografía de tórax, Análisis de sangre..."
-            />
-          </el-form-item>
-          <el-form-item label="Exámenes Sugeridos">
-            <el-switch
-              v-model="form.Examenes_Sugeridos"
-              active-text="Sí"
-              inactive-text="No"
-            />
-            <span class="ml-2 text-sm text-gray-500">(Opcionales para el paciente)</span>
-          </el-form-item>
-          <el-form-item 
-            label="Descripción de Exámenes Sugeridos" 
-            v-if="form.Examenes_Sugeridos"
-          >
-            <el-input
-              v-model="form.Examenes_Sugeridos_Descripcion"
-              type="textarea"
-              :rows="3"
-              placeholder="Ej: Ecografía abdominal, Tomografía, Análisis de orina completo..."
-            />
-          </el-form-item>
         </el-form>
         
-        <!-- Dialog para crear/editar receta -->
         <el-dialog
           v-model="dialogRecetaVisible"
           :title="isEditReceta ? 'Editar Receta' : 'Nueva Receta'"
@@ -376,6 +399,70 @@
           </template>
         </el-dialog>
         
+      
+        <el-dialog
+          v-model="dialogExamenVisible"
+          :title="isEditExamen ? 'Editar Examen' : 'Nuevo Examen'"
+          width="700px"
+          append-to-body
+        >
+          <el-form :model="formExamen" label-width="150px">
+            <el-form-item label="Tipo de Examen" required>
+              <el-input
+                v-model="formExamen.Tipo_Examen"
+                placeholder="Ej: Hemograma completo, Radiografía de tórax..."
+              />
+            </el-form-item>
+            <el-form-item label="Fecha de Solicitud" required>
+              <el-date-picker
+                v-model="formExamen.Fecha_Solicitud"
+                type="datetime"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="Seleccione fecha y hora"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="Estado" required>
+              <el-select v-model="formExamen.Estado" placeholder="Seleccione el estado" style="width: 100%">
+                <el-option label="Pendiente" value="Pendiente" />
+                <el-option label="Completado" value="Completado" />
+                <el-option label="Cancelado" value="Cancelado" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Fecha de Resultado" v-if="formExamen.Estado === 'Completado'">
+              <el-date-picker
+                v-model="formExamen.Fecha_Resultado"
+                type="datetime"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="Seleccione fecha y hora del resultado"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="Resultado" v-if="formExamen.Estado === 'Completado'">
+              <el-input
+                v-model="formExamen.Resultado"
+                type="textarea"
+                :rows="4"
+                placeholder="Ingrese el resultado del examen"
+              />
+            </el-form-item>
+            <el-form-item label="Observaciones">
+              <el-input
+                v-model="formExamen.Observaciones"
+                type="textarea"
+                :rows="3"
+                placeholder="Ingrese observaciones adicionales"
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="dialogExamenVisible = false">Cancelar</el-button>
+            <el-button type="primary" @click="handleSubmitExamen">Guardar</el-button>
+          </template>
+        </el-dialog>
+        
         <template #footer>
           <el-button @click="dialogVisible = false">Cancelar</el-button>
           <el-button type="primary" @click="handleSubmit">Guardar</el-button>
@@ -408,6 +495,15 @@ import {
   type Receta,
   type RecetaCreate
 } from '@/services/recetas'
+import {
+  getExamenes,
+  createExamen,
+  updateExamen,
+  deleteExamen,
+  type Examen,
+  type ExamenCreate,
+  type ExamenUpdate
+} from '@/services/examenes'
 import { getDoctores, type Doctor } from '@/services/doctores'
 import { getPacientes, type Paciente } from '@/services/pacientes'
 
@@ -418,6 +514,10 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const activeTab = ref('consulta')
+const filtros = ref<{ dniPaciente?: string; dniDoctor?: string }>({
+  dniPaciente: '',
+  dniDoctor: ''
+})
 const form = ref<ConsultaCreate & { Codigo?: number }>({
   Codigo_Paciente: undefined,
   Codigo_Doctor: undefined,
@@ -446,6 +546,24 @@ const formReceta = ref<RecetaCreate & { Codigo?: number }>({
   Instrucciones: undefined
 })
 
+// Estados para exámenes
+const examenesConsulta = ref<Examen[]>([])
+const loadingExamenes = ref(false)
+const dialogExamenVisible = ref(false)
+const isEditExamen = ref(false)
+const formExamen = ref<ExamenCreate & { Codigo?: number }>({
+  Codigo_Paciente: 0,
+  Codigo_Doctor: 0,
+  Codigo_Consulta: undefined,
+  Codigo_Cita: undefined,
+  Tipo_Examen: '',
+  Fecha_Solicitud: undefined,
+  Fecha_Resultado: undefined,
+  Resultado: undefined,
+  Observaciones: undefined,
+  Estado: 'Pendiente'
+})
+
 // Computed para filtrar solo doctores activos
 const doctoresActivos = computed(() => {
   return doctores.value.filter(d => d.Estado === 'Activo')
@@ -462,6 +580,29 @@ const doctoresMap = computed(() => {
   const map = new Map<number, Doctor>()
   doctores.value.forEach(d => map.set(d.Codigo, d))
   return map
+})
+
+const consultasFiltradas = computed(() => {
+  return consultas.value.filter((c) => {
+    const paciente = c.Codigo_Paciente ? pacientesMap.value.get(c.Codigo_Paciente) : undefined
+    const doctor = c.Codigo_Doctor ? doctoresMap.value.get(c.Codigo_Doctor) : undefined
+
+    if (filtros.value.dniPaciente) {
+      const dniPac = paciente?.Numero_Identificacion || ''
+      if (!dniPac.toString().includes(filtros.value.dniPaciente)) {
+        return false
+      }
+    }
+
+    if (filtros.value.dniDoctor) {
+      const dniDoc = doctor?.Numero_Identificacion || ''
+      if (!dniDoc.toString().includes(filtros.value.dniDoctor)) {
+        return false
+      }
+    }
+
+    return true
+  })
 })
 
 const route = useRoute()
@@ -495,6 +636,11 @@ async function loadPacientes() {
   } catch (error) {
     ElMessage.error('Error al cargar pacientes')
   }
+}
+
+function limpiarFiltros() {
+  filtros.value.dniPaciente = ''
+  filtros.value.dniDoctor = ''
 }
 
 function getPacienteNombre(codigo: number | undefined): string {
@@ -538,9 +684,10 @@ async function handleEdit(row: Consulta) {
   form.value = { ...row }
   activeTab.value = 'consulta'
   dialogVisible.value = true
-  // Cargar recetas asociadas a esta consulta
+  // Cargar recetas y exámenes asociados a esta consulta
   if (row.Codigo) {
     await loadRecetasConsulta(row.Codigo)
+    await loadExamenesConsulta(row.Codigo)
   }
 }
 
@@ -650,8 +797,9 @@ async function abrirEdicionConsulta(codigo: number) {
       form.value = { ...response.data }
       activeTab.value = 'consulta'
       dialogVisible.value = true
-      // Cargar recetas asociadas
+      // Cargar recetas y exámenes asociados
       await loadRecetasConsulta(codigo)
+      await loadExamenesConsulta(codigo)
     }
   } catch (error) {
     console.error('Error al cargar la consulta:', error)
@@ -767,6 +915,137 @@ async function handleEliminarReceta(codigo: number) {
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('Error al eliminar receta')
+    }
+  }
+}
+
+// Funciones para gestionar exámenes
+async function loadExamenesConsulta(codigoConsulta: number) {
+  loadingExamenes.value = true
+  try {
+    // Obtener todos los exámenes y filtrar por consulta
+    const response = await getExamenes({ codigo_consulta: codigoConsulta })
+    examenesConsulta.value = Array.isArray(response.data) ? response.data : []
+  } catch (error) {
+    console.error('Error al cargar exámenes:', error)
+    examenesConsulta.value = []
+  } finally {
+    loadingExamenes.value = false
+  }
+}
+
+function handleCrearExamen() {
+  if (!form.value.Codigo) {
+    ElMessage.warning('Debe guardar la consulta primero antes de agregar exámenes')
+    return
+  }
+  isEditExamen.value = false
+  const now = new Date()
+  const fechaDefault = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+  
+  formExamen.value = {
+    Codigo_Paciente: form.value.Codigo_Paciente || 0,
+    Codigo_Doctor: form.value.Codigo_Doctor || 0,
+    Codigo_Consulta: form.value.Codigo,
+    Codigo_Cita: undefined,
+    Tipo_Examen: '',
+    Fecha_Solicitud: fechaDefault,
+    Fecha_Resultado: undefined,
+    Resultado: undefined,
+    Observaciones: undefined,
+    Estado: 'Pendiente'
+  }
+  dialogExamenVisible.value = true
+}
+
+function handleEditarExamen(examen: Examen) {
+  isEditExamen.value = true
+  formExamen.value = {
+    Codigo: examen.Codigo,
+    Codigo_Paciente: examen.Codigo_Paciente,
+    Codigo_Doctor: examen.Codigo_Doctor,
+    Codigo_Consulta: examen.Codigo_Consulta,
+    Codigo_Cita: examen.Codigo_Cita,
+    Tipo_Examen: examen.Tipo_Examen,
+    Fecha_Solicitud: examen.Fecha_Solicitud,
+    Fecha_Resultado: examen.Fecha_Resultado,
+    Resultado: examen.Resultado,
+    Observaciones: examen.Observaciones,
+    Estado: examen.Estado || 'Pendiente'
+  }
+  dialogExamenVisible.value = true
+}
+
+async function handleSubmitExamen() {
+  if (!formExamen.value.Tipo_Examen || !formExamen.value.Tipo_Examen.trim()) {
+    ElMessage.warning('Debe ingresar el tipo de examen')
+    return
+  }
+  if (!formExamen.value.Fecha_Solicitud) {
+    ElMessage.warning('Debe seleccionar la fecha de solicitud')
+    return
+  }
+
+  try {
+    const datosEnvio: ExamenCreate = {
+      Codigo_Paciente: formExamen.value.Codigo_Paciente!,
+      Codigo_Doctor: formExamen.value.Codigo_Doctor!,
+      Codigo_Consulta: formExamen.value.Codigo_Consulta,
+      Codigo_Cita: formExamen.value.Codigo_Cita,
+      Tipo_Examen: formExamen.value.Tipo_Examen.trim(),
+      Fecha_Solicitud: formExamen.value.Fecha_Solicitud,
+      Fecha_Resultado: formExamen.value.Fecha_Resultado,
+      Resultado: formExamen.value.Resultado?.trim(),
+      Observaciones: formExamen.value.Observaciones?.trim(),
+      Estado: formExamen.value.Estado || 'Pendiente'
+    }
+
+    if (isEditExamen.value && formExamen.value.Codigo) {
+      const datosUpdate: ExamenUpdate = { ...datosEnvio }
+      await updateExamen(formExamen.value.Codigo, datosUpdate)
+      ElMessage.success('Examen actualizado correctamente')
+    } else {
+      await createExamen(datosEnvio)
+      ElMessage.success('Examen creado correctamente')
+    }
+    dialogExamenVisible.value = false
+    if (form.value.Codigo) {
+      await loadExamenesConsulta(form.value.Codigo)
+    }
+  } catch (error: any) {
+    console.error('Error al guardar examen:', error)
+    let errorMessage = 'Error al guardar examen'
+    if (error?.response?.data) {
+      const errorData = error.response.data
+      if (errorData.detail && Array.isArray(errorData.detail)) {
+        const validationErrors = errorData.detail
+          .map((err: any) => {
+            const field = err.loc ? err.loc.join('.') : 'campo'
+            return `${field}: ${err.msg}`
+          })
+          .join(', ')
+        errorMessage = `Error de validación: ${validationErrors}`
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail
+      }
+    }
+    ElMessage.error(errorMessage)
+  }
+}
+
+async function handleEliminarExamen(codigo: number) {
+  try {
+    await ElMessageBox.confirm('¿Está seguro de eliminar este examen?', 'Confirmar', {
+      type: 'warning'
+    })
+    await deleteExamen(codigo)
+    ElMessage.success('Examen eliminado correctamente')
+    if (form.value.Codigo) {
+      await loadExamenesConsulta(form.value.Codigo)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('Error al eliminar examen')
     }
   }
 }

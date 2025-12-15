@@ -2,7 +2,7 @@
 Modelos Pydantic para validación de datos
 """
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date, time
 
 
@@ -19,6 +19,8 @@ class PacienteBase(BaseModel):
     Contacto_Emergencia: Optional[str] = None
     Telefono_Emergencia: Optional[float] = None
     Codigo_Seguro: Optional[int] = None
+    Numero_Identificacion: Optional[str] = None
+    Tipo_Identificacion: Optional[str] = None
 
 
 class PacienteCreate(PacienteBase):
@@ -37,6 +39,8 @@ class PacienteUpdate(BaseModel):
     Contacto_Emergencia: Optional[str] = None
     Telefono_Emergencia: Optional[float] = None
     Codigo_Seguro: Optional[int] = None
+    Numero_Identificacion: Optional[str] = None
+    Tipo_Identificacion: Optional[str] = None
 
 
 class Paciente(PacienteBase):
@@ -58,6 +62,8 @@ class DoctorBase(BaseModel):
     Genero: Optional[str] = None
     Numero_Celular: Optional[float] = None
     Numero_Colegiado: Optional[str] = None
+    Numero_Identificacion: Optional[str] = None
+    Tipo_Identificacion: Optional[str] = None
     Fecha_Contratacion: Optional[date] = None
     Estado: Optional[str] = None
     Salario: Optional[float] = None
@@ -76,6 +82,8 @@ class DoctorUpdate(BaseModel):
     Genero: Optional[str] = None
     Numero_Celular: Optional[float] = None
     Numero_Colegiado: Optional[str] = None
+    Numero_Identificacion: Optional[str] = None
+    Tipo_Identificacion: Optional[str] = None
     Fecha_Contratacion: Optional[date] = None
     Estado: Optional[str] = None
     Salario: Optional[float] = None
@@ -118,16 +126,27 @@ class CitaUpdate(BaseModel):
     Observaciones: Optional[str] = None
 
 
+class ExamenAsociado(BaseModel):
+    Codigo: int
+    Tipo_Examen: Optional[str] = None
+    Fecha_Solicitud: Optional[str] = None
+    Fecha_Resultado: Optional[str] = None
+    Resultado: Optional[str] = None
+    Observaciones: Optional[str] = None
+    Estado: Optional[str] = None
+
+
 class Cita(CitaBase):
     Codigo: int
     Fecha_Creacion: Optional[datetime] = None
     Fecha_Modificacion: Optional[datetime] = None
+    Examenes_Asociados: Optional[List[ExamenAsociado]] = None
 
     class Config:
         from_attributes = True
 
 
-# ==================== CONSULTAS MÉDICAS ====================
+
 class ConsultaBase(BaseModel):
     Codigo_Paciente: Optional[int] = None
     Codigo_Doctor: Optional[int] = None
@@ -167,7 +186,6 @@ class Consulta(ConsultaBase):
         from_attributes = True
 
 
-# ==================== RECETA ====================
 class RecetaBase(BaseModel):
     Codigo_Paciente: Optional[int] = None
     Codigo_Doctor: Optional[int] = None
@@ -201,7 +219,7 @@ class Receta(RecetaBase):
         from_attributes = True
 
 
-# ==================== HISTORIAL MÉDICO ====================
+
 class HistorialBase(BaseModel):
     Codigo_Paciente: Optional[int] = None
     Fecha_Ingreso: Optional[datetime] = None
@@ -231,10 +249,12 @@ class Historial(HistorialBase):
         from_attributes = True
 
 
-# ==================== EXÁMENES DE LABORATORIO ====================
+
 class ExamenBase(BaseModel):
     Codigo_Paciente: int
     Codigo_Doctor: int
+    Codigo_Consulta: Optional[int] = None
+    Codigo_Cita: Optional[int] = None
     Tipo_Examen: str
     Fecha_Solicitud: Optional[datetime] = None
     Fecha_Resultado: Optional[datetime] = None
@@ -250,6 +270,8 @@ class ExamenCreate(ExamenBase):
 class ExamenUpdate(BaseModel):
     Codigo_Paciente: Optional[int] = None
     Codigo_Doctor: Optional[int] = None
+    Codigo_Consulta: Optional[int] = None
+    Codigo_Cita: Optional[int] = None
     Tipo_Examen: Optional[str] = None
     Fecha_Solicitud: Optional[datetime] = None
     Fecha_Resultado: Optional[datetime] = None
@@ -267,7 +289,7 @@ class Examen(ExamenBase):
         from_attributes = True
 
 
-# ==================== USUARIOS DEL SISTEMA ====================
+
 class UsuarioSistemaBase(BaseModel):
     Usuario: str
     Contrasena: str

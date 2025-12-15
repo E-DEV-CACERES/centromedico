@@ -69,6 +69,8 @@ def crear_tabla_doctor(cursor):
             Genero TEXT,
             Numero_Celular REAL,
             Numero_Colegiado TEXT UNIQUE,
+            Numero_Identificacion TEXT,
+            Tipo_Identificacion TEXT,
             Fecha_Contratacion DATE,
             Estado TEXT DEFAULT 'Activo',
             Salario REAL,
@@ -154,15 +156,19 @@ def crear_tabla_examenes(cursor):
             Codigo_Paciente INTEGER NOT NULL,
             Codigo_Doctor INTEGER,
             Codigo_Consulta INTEGER,
+            Codigo_Cita INTEGER,
             Tipo_Examen TEXT NOT NULL,
-            Fecha_Examen DATE NOT NULL,
-            Resultados TEXT,
+            Fecha_Solicitud DATETIME NOT NULL,
+            Fecha_Resultado DATETIME,
+            Resultado TEXT,
             Observaciones TEXT,
+            Estado TEXT DEFAULT 'Pendiente',
             Fecha_Creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
             Fecha_Modificacion DATETIME,
             FOREIGN KEY (Codigo_Paciente) REFERENCES pacientes(Codigo),
             FOREIGN KEY (Codigo_Doctor) REFERENCES doctor(Codigo),
-            FOREIGN KEY (Codigo_Consulta) REFERENCES consultas(Codigo)
+            FOREIGN KEY (Codigo_Consulta) REFERENCES consultas(Codigo),
+            FOREIGN KEY (Codigo_Cita) REFERENCES citas(Codigo)
         )
     """)
 

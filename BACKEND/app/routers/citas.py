@@ -9,7 +9,7 @@ from app.models import Cita, CitaCreate, CitaUpdate
 from datetime import datetime, timedelta
 import logging
 
-# Configurar logging (si no está configurado, usa nivel WARNING por defecto)
+
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
@@ -20,7 +20,7 @@ router = APIRouter()
 def validar_fecha_futura(fecha_hora: datetime) -> None:
     """Validar que la fecha/hora de la cita sea en el futuro"""
     if fecha_hora:
-        # Permitir un margen de 5 minutos para evitar problemas de sincronización
+     
         ahora = datetime.now() - timedelta(minutes=5)
         if fecha_hora < ahora:
             raise HTTPException(
@@ -36,7 +36,7 @@ def verificar_disponibilidad_doctor(
     codigo_cita_excluir: Optional[int] = None
 ) -> None:
     """Verificar que el doctor no tenga otra cita en el mismo horario"""
-    # Buscar citas del doctor en un rango de 30 minutos antes y después
+   
     fecha_inicio = (fecha_hora - timedelta(minutes=30)).isoformat()
     fecha_fin = (fecha_hora + timedelta(minutes=30)).isoformat()
     
@@ -98,7 +98,42 @@ async def listar_citas(
         
         cursor.execute(query, params)
         citas = cursor.fetchall()
-        return [dict(row) for row in citas] if citas else []
+        
+       
+        if not citas:
+            return []
+        
+     
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='examenes'")
+        tabla_examenes_existe = cursor.fetchone() is not None
+        
+        resultado = []
+        for row in citas:
+            cita_dict = dict(row)
+            codigo_cita = cita_dict.get("Codigo")
+            
+           
+            examenes_asociados = []
+            if codigo_cita and tabla_examenes_existe:
+                try:
+                    cursor.execute("""
+                        SELECT Codigo, Tipo_Examen, Fecha_Solicitud, Fecha_Resultado, 
+                               Resultado, Observaciones, Estado
+                        FROM examenes
+                        WHERE Codigo_Cita = ?
+                        ORDER BY Fecha_Solicitud DESC
+                    """, (codigo_cita,))
+                    examenes_rows = cursor.fetchall()
+                    for examen_row in examenes_rows:
+                        examen_dict = dict(examen_row)
+                        examenes_asociados.append(examen_dict)
+                except Exception as e:
+                    logger.warning(f"Error al cargar exámenes para cita {codigo_cita}: {e}")
+            
+            cita_dict["Examenes_Asociados"] = examenes_asociados
+            resultado.append(cita_dict)
+        
+        return resultado
     
     except OperationalError as e:
         logger.error(f"Error de base de datos al listar citas: {e}")
@@ -128,7 +163,31 @@ async def obtener_cita(codigo: int, db: Connection = Depends(get_db)):
                 detail=f"Cita con código {codigo} no encontrada"
             )
         
-        return dict(cita)
+        cita_dict = dict(cita)
+        
+       
+        examenes_asociados = []
+        try:
+          
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='examenes'")
+            if cursor.fetchone():
+                cursor.execute("""
+                    SELECT Codigo, Tipo_Examen, Fecha_Solicitud, Fecha_Resultado, 
+                           Resultado, Observaciones, Estado
+                    FROM examenes
+                    WHERE Codigo_Cita = ?
+                    ORDER BY Fecha_Solicitud DESC
+                """, (codigo,))
+                examenes_rows = cursor.fetchall()
+                for examen_row in examenes_rows:
+                    examen_dict = dict(examen_row)
+                    examenes_asociados.append(examen_dict)
+        except Exception as e:
+            logger.warning(f"Error al cargar exámenes para cita {codigo}: {e}")
+        
+        cita_dict["Examenes_Asociados"] = examenes_asociados
+        
+        return cita_dict
     
     except HTTPException:
         raise
@@ -153,14 +212,14 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
     cursor = db.cursor()
     
     try:
-        # Log para debugging
+      
         logger.info(f"Recibiendo solicitud para crear cita: {cita.model_dump()}")
         
-        # Validar fecha futura
+ 
         if cita.Fecha_Hora:
             validar_fecha_futura(cita.Fecha_Hora)
         
-        # Verificar que paciente existe
+      
         cursor.execute("SELECT Codigo FROM pacientes WHERE Codigo = ?", (cita.Codigo_Paciente,))
         if not cursor.fetchone():
             raise HTTPException(
@@ -168,7 +227,7 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
                 detail=f"Paciente con código {cita.Codigo_Paciente} no encontrado"
             )
         
-        # Verificar que doctor existe y está activo
+      
         cursor.execute(
             "SELECT Codigo, Estado FROM doctor WHERE Codigo = ?",
             (cita.Codigo_Doctor,)
@@ -180,18 +239,16 @@ async def crear_cita(cita: CitaCreate, db: Connection = Depends(get_db)):
                 detail=f"Doctor con código {cita.Codigo_Doctor} no encontrado"
             )
         
-        # Verificar que el doctor esté activo
+        
         if doctor[1] and doctor[1] != "Activo":
             raise HTTPException(
                 status_code=400,
                 detail=f"El doctor no está disponible (Estado: {doctor[1]})"
             )
-        
-        # Verificar disponibilidad del doctor
+   
         if cita.Fecha_Hora:
             verificar_disponibilidad_doctor(cursor, cita.Codigo_Doctor, cita.Fecha_Hora)
         
-        # Preparar datos con validación
         datos = {
             "Codigo_Paciente": cita.Codigo_Paciente,
             "Codigo_Doctor": cita.Codigo_Doctor,
