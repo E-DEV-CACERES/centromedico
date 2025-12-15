@@ -87,7 +87,8 @@ def row_to_dict(row) -> dict:
 async def listar_pacientes(
     db: Connection = Depends(get_db),
     nombre: Optional[str] = Query(None, description="Filtrar por nombre"),
-    apellidos: Optional[str] = Query(None, description="Filtrar por apellidos")
+    apellidos: Optional[str] = Query(None, description="Filtrar por apellidos"),
+    numero_identificacion: Optional[str] = Query(None, description="Filtrar por número de identificación")
 ):
     """
     Listar todos los pacientes con filtros opcionales
@@ -108,6 +109,10 @@ async def listar_pacientes(
         if apellidos:
             query += " AND Apellidos LIKE ?"
             params.append(f"%{apellidos}%")
+
+        if numero_identificacion:
+            query += " AND Numero_Identificacion LIKE ?"
+            params.append(f"%{numero_identificacion}%")
         
         query += " ORDER BY Codigo DESC"
         
@@ -175,6 +180,18 @@ async def crear_paciente(paciente: PacienteCreate, db: Connection = Depends(get_
                     status_code=404,
                     detail=f"Seguro con código {paciente.Codigo_Seguro} no encontrado"
                 )
+
+        # Validar que Numero_Identificacion sea único si se proporciona
+        if paciente.Numero_Identificacion:
+            cursor.execute(
+                "SELECT Codigo FROM pacientes WHERE Numero_Identificacion = ?",
+                (paciente.Numero_Identificacion,)
+            )
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El número de identificación {paciente.Numero_Identificacion} ya existe"
+                )
         
         # Preparar datos
         datos = {
@@ -188,7 +205,9 @@ async def crear_paciente(paciente: PacienteCreate, db: Connection = Depends(get_
             "Alergias": paciente.Alergias,
             "Contacto_Emergencia": paciente.Contacto_Emergencia,
             "Telefono_Emergencia": paciente.Telefono_Emergencia,
-            "Codigo_Seguro": paciente.Codigo_Seguro
+            "Codigo_Seguro": paciente.Codigo_Seguro,
+            "Numero_Identificacion": paciente.Numero_Identificacion,
+            "Tipo_Identificacion": paciente.Tipo_Identificacion,
         }
         
         # Construir query de forma segura
@@ -240,7 +259,7 @@ async def actualizar_paciente(
     cursor = db.cursor()
     
     try:
-        # Verificar que existe
+     
         cursor.execute("SELECT * FROM pacientes WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
             raise HTTPException(
@@ -248,7 +267,7 @@ async def actualizar_paciente(
                 detail=f"Paciente con código {codigo} no encontrado"
             )
         
-        # Preparar datos de actualización
+    
         datos = paciente.model_dump(exclude_unset=True)
         if not datos:
             raise HTTPException(
@@ -256,7 +275,7 @@ async def actualizar_paciente(
                 detail="No se proporcionaron datos para actualizar"
             )
         
-        # Validar Codigo_Seguro si se actualiza
+  
         if "Codigo_Seguro" in datos and datos["Codigo_Seguro"]:
             cursor.execute("SELECT Codigo FROM seguros WHERE Codigo = ?", (datos["Codigo_Seguro"],))
             if not cursor.fetchone():
@@ -264,8 +283,19 @@ async def actualizar_paciente(
                     status_code=404,
                     detail=f"Seguro con código {datos['Codigo_Seguro']} no encontrado"
                 )
+
+        if "Numero_Identificacion" in datos and datos["Numero_Identificacion"]:
+            cursor.execute(
+                "SELECT Codigo FROM pacientes WHERE Numero_Identificacion = ? AND Codigo != ?",
+                (datos["Numero_Identificacion"], codigo)
+            )
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El número de identificación {datos['Numero_Identificacion']} ya está en uso"
+                )
         
-        # Convertir fecha si existe
+    
         if "Fecha_Nacimiento" in datos and datos["Fecha_Nacimiento"]:
             if hasattr(datos["Fecha_Nacimiento"], 'isoformat'):
                 datos["Fecha_Nacimiento"] = datos["Fecha_Nacimiento"].isoformat()

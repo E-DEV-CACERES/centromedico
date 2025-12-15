@@ -10,6 +10,8 @@ export interface Doctor {
   Genero?: string
   Numero_Celular?: number
   Numero_Colegiado?: string
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
   Fecha_Contratacion?: string
   Estado?: string
   Salario?: number
@@ -26,6 +28,8 @@ export interface DoctorCreate {
   Genero?: string
   Numero_Celular?: number
   Numero_Colegiado?: string
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
   Fecha_Contratacion?: string
   Estado?: string
   Salario?: number
@@ -40,13 +44,15 @@ export interface DoctorUpdate {
   Genero?: string
   Numero_Celular?: number
   Numero_Colegiado?: string
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
   Fecha_Contratacion?: string
   Estado?: string
   Salario?: number
 }
 
-export function getDoctores() {
-  return api.get<Doctor[]>('/api/doctores')
+export function getDoctores(params?: Record<string, unknown>) {
+  return api.get<Doctor[]>('/api/doctores', { params })
 }
 
 export function getDoctor(codigo: number) {

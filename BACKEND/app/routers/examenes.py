@@ -21,6 +21,8 @@ async def listar_examenes(
     db: Connection = Depends(get_db),
     codigo_paciente: Optional[int] = Query(None, description="Filtrar por paciente"),
     codigo_doctor: Optional[int] = Query(None, description="Filtrar por doctor"),
+    codigo_consulta: Optional[int] = Query(None, description="Filtrar por consulta"),
+    codigo_cita: Optional[int] = Query(None, description="Filtrar por cita"),
     estado: Optional[str] = Query(None, description="Filtrar por estado")
 ):
     """
@@ -28,12 +30,14 @@ async def listar_examenes(
     
     - **codigo_paciente**: Filtrar por paciente
     - **codigo_doctor**: Filtrar por doctor
+    - **codigo_consulta**: Filtrar por consulta
+    - **codigo_cita**: Filtrar por cita
     - **estado**: Filtrar por estado (Pendiente, Completado, Cancelado)
     """
     try:
         cursor = db.cursor()
         
-        query = "SELECT * FROM examenes_laboratorio WHERE 1=1"
+        query = "SELECT * FROM examenes WHERE 1=1"
         params = []
         
         if codigo_paciente:
@@ -44,6 +48,14 @@ async def listar_examenes(
             query += " AND Codigo_Doctor = ?"
             params.append(codigo_doctor)
         
+        if codigo_consulta:
+            query += " AND Codigo_Consulta = ?"
+            params.append(codigo_consulta)
+        
+        if codigo_cita:
+            query += " AND Codigo_Cita = ?"
+            params.append(codigo_cita)
+        
         if estado:
             query += " AND Estado = ?"
             params.append(estado)
@@ -52,19 +64,77 @@ async def listar_examenes(
         
         cursor.execute(query, params)
         examenes = cursor.fetchall()
-        return [dict(row) for row in examenes] if examenes else []
+        
+        # Si no hay exámenes, retornar lista vacía
+        if not examenes:
+            return []
+        
+        # Convertir Row objects a diccionarios y agregar información de cita y consulta
+        resultado = []
+        for row in examenes:
+            try:
+                examen_dict = dict(row)
+                # Asegurar que Estado tenga un valor por defecto si es None
+                if examen_dict.get("Estado") is None:
+                    examen_dict["Estado"] = "Pendiente"
+                
+                # Obtener información de la cita si existe
+                if examen_dict.get("Codigo_Cita"):
+                    try:
+                        cursor.execute("""
+                            SELECT Codigo, Fecha_Hora, Estado, Motivo
+                            FROM citas
+                            WHERE Codigo = ?
+                        """, (examen_dict["Codigo_Cita"],))
+                        cita = cursor.fetchone()
+                        if cita:
+                            examen_dict["Cita_Info"] = {
+                                "Codigo": cita[0],
+                                "Fecha_Hora": cita[1],
+                                "Estado": cita[2],
+                                "Motivo": cita[3]
+                            }
+                    except Exception as e:
+                        logger.warning(f"Error al cargar información de cita para examen {examen_dict.get('Codigo')}: {e}")
+                
+                # Obtener información de la consulta si existe
+                if examen_dict.get("Codigo_Consulta"):
+                    try:
+                        cursor.execute("""
+                            SELECT Codigo, Fecha_de_Consulta, Estado, Tipo_de_Consulta, Diagnostico
+                            FROM consultas
+                            WHERE Codigo = ?
+                        """, (examen_dict["Codigo_Consulta"],))
+                        consulta = cursor.fetchone()
+                        if consulta:
+                            examen_dict["Consulta_Info"] = {
+                                "Codigo": consulta[0],
+                                "Fecha_de_Consulta": consulta[1],
+                                "Estado": consulta[2],
+                                "Tipo_de_Consulta": consulta[3],
+                                "Diagnostico": consulta[4]
+                            }
+                    except Exception as e:
+                        logger.warning(f"Error al cargar información de consulta para examen {examen_dict.get('Codigo')}: {e}")
+                
+                resultado.append(examen_dict)
+            except Exception as e:
+                logger.warning(f"Error al procesar examen: {e}")
+                continue
+        
+        return resultado
     
     except OperationalError as e:
-        logger.error(f"Error de base de datos al listar exámenes: {e}")
+        logger.error(f"Error de base de datos al listar exámenes: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al acceder a la base de datos"
+            detail=f"Error al acceder a la base de datos: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"Error inesperado al listar exámenes: {e}")
+        logger.error(f"Error inesperado al listar exámenes: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error interno del servidor"
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
 
@@ -73,7 +143,7 @@ async def obtener_examen(codigo: int, db: Connection = Depends(get_db)):
     """Obtener un examen por código"""
     try:
         cursor = db.cursor()
-        cursor.execute("SELECT * FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM examenes WHERE Codigo = ?", (codigo,))
         examen = cursor.fetchone()
         
         if not examen:
@@ -82,7 +152,48 @@ async def obtener_examen(codigo: int, db: Connection = Depends(get_db)):
                 detail=f"Examen con código {codigo} no encontrado"
             )
         
-        return dict(examen)
+        examen_dict = dict(examen)
+        
+        # Obtener información de la cita si existe
+        if examen_dict.get("Codigo_Cita"):
+            try:
+                cursor.execute("""
+                    SELECT Codigo, Fecha_Hora, Estado, Motivo
+                    FROM citas
+                    WHERE Codigo = ?
+                """, (examen_dict["Codigo_Cita"],))
+                cita = cursor.fetchone()
+                if cita:
+                    examen_dict["Cita_Info"] = {
+                        "Codigo": cita[0],
+                        "Fecha_Hora": cita[1],
+                        "Estado": cita[2],
+                        "Motivo": cita[3]
+                    }
+            except Exception as e:
+                logger.warning(f"Error al cargar información de cita para examen {codigo}: {e}")
+        
+        # Obtener información de la consulta si existe
+        if examen_dict.get("Codigo_Consulta"):
+            try:
+                cursor.execute("""
+                    SELECT Codigo, Fecha_de_Consulta, Estado, Tipo_de_Consulta, Diagnostico
+                    FROM consultas
+                    WHERE Codigo = ?
+                """, (examen_dict["Codigo_Consulta"],))
+                consulta = cursor.fetchone()
+                if consulta:
+                    examen_dict["Consulta_Info"] = {
+                        "Codigo": consulta[0],
+                        "Fecha_de_Consulta": consulta[1],
+                        "Estado": consulta[2],
+                        "Tipo_de_Consulta": consulta[3],
+                        "Diagnostico": consulta[4]
+                    }
+            except Exception as e:
+                logger.warning(f"Error al cargar información de consulta para examen {codigo}: {e}")
+        
+        return examen_dict
     
     except HTTPException:
         raise
@@ -121,10 +232,29 @@ async def crear_examen(examen: ExamenCreate, db: Connection = Depends(get_db)):
                 detail=f"Doctor con código {examen.Codigo_Doctor} no encontrado"
             )
         
+        # Validar que si se proporciona Codigo_Consulta o Codigo_Cita, existan
+        if examen.Codigo_Consulta:
+            cursor.execute("SELECT Codigo FROM consultas WHERE Codigo = ?", (examen.Codigo_Consulta,))
+            if not cursor.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Consulta con código {examen.Codigo_Consulta} no encontrada"
+                )
+        
+        if examen.Codigo_Cita:
+            cursor.execute("SELECT Codigo FROM citas WHERE Codigo = ?", (examen.Codigo_Cita,))
+            if not cursor.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Cita con código {examen.Codigo_Cita} no encontrada"
+                )
+        
         # Preparar datos
         datos = {
             "Codigo_Paciente": examen.Codigo_Paciente,
             "Codigo_Doctor": examen.Codigo_Doctor,
+            "Codigo_Consulta": examen.Codigo_Consulta,
+            "Codigo_Cita": examen.Codigo_Cita,
             "Tipo_Examen": examen.Tipo_Examen,
             "Fecha_Solicitud": examen.Fecha_Solicitud.isoformat() if examen.Fecha_Solicitud else datetime.now().isoformat(),
             "Fecha_Resultado": examen.Fecha_Resultado.isoformat() if examen.Fecha_Resultado else None,
@@ -140,14 +270,14 @@ async def crear_examen(examen: ExamenCreate, db: Connection = Depends(get_db)):
         campos_str = ", ".join(campos)
         
         cursor.execute(
-            f"INSERT INTO examenes_laboratorio ({campos_str}) VALUES ({placeholders})",
+            f"INSERT INTO examenes ({campos_str}) VALUES ({placeholders})",
             valores
         )
         
         codigo = cursor.lastrowid
         db.commit()
         
-        cursor.execute("SELECT * FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM examenes WHERE Codigo = ?", (codigo,))
         nuevo_examen = cursor.fetchone()
         
         logger.info(f"Examen {codigo} creado exitosamente")
@@ -183,7 +313,7 @@ async def actualizar_examen(
     
     try:
         # Verificar que existe
-        cursor.execute("SELECT * FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM examenes WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
             raise HTTPException(
                 status_code=404,
@@ -233,12 +363,12 @@ async def actualizar_examen(
         valores.append(codigo)
         
         cursor.execute(
-            f"UPDATE examenes_laboratorio SET {', '.join(campos)} WHERE Codigo = ?",
+            f"UPDATE examenes SET {', '.join(campos)} WHERE Codigo = ?",
             valores
         )
         db.commit()
         
-        cursor.execute("SELECT * FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT * FROM examenes WHERE Codigo = ?", (codigo,))
         examen_actualizado = cursor.fetchone()
         
         logger.info(f"Examen {codigo} actualizado exitosamente")
@@ -275,14 +405,14 @@ async def eliminar_examen(codigo: int, db: Connection = Depends(get_db)):
     
     try:
         # Verificar que existe
-        cursor.execute("SELECT Codigo FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("SELECT Codigo FROM examenes WHERE Codigo = ?", (codigo,))
         if not cursor.fetchone():
             raise HTTPException(
                 status_code=404,
                 detail=f"Examen con código {codigo} no encontrado"
             )
         
-        cursor.execute("DELETE FROM examenes_laboratorio WHERE Codigo = ?", (codigo,))
+        cursor.execute("DELETE FROM examenes WHERE Codigo = ?", (codigo,))
         db.commit()
         
         logger.info(f"Examen {codigo} eliminado exitosamente")

@@ -9,18 +9,37 @@
         </el-button>
       </div>
 
+      <el-card class="mb-4">
+        <el-form :inline="true" :model="filtros">
+          <el-form-item label="Nro Identificación">
+            <el-input
+              v-model="filtros.numero_identificacion"
+              placeholder="Buscar por número de identificación"
+              clearable
+              style="width: 260px"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="loadPacientes">Buscar</el-button>
+            <el-button @click="limpiarFiltros">Limpiar</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
       <el-card>
         <div v-if="!loading && !hasPacientes" class="text-center py-8 text-gray-500">
           <p>No hay pacientes registrados</p>
         </div>
         <el-table 
           v-else
-          :data="pacientes" 
+          :data="pacientesPaginados" 
           v-loading="loading" 
           stripe
           empty-text="No hay datos"
         >
           <el-table-column prop="Codigo" label="Código" width="100" />
+          <el-table-column prop="Tipo_Identificacion" label="Tipo ID" width="120" />
+          <el-table-column prop="Numero_Identificacion" label="Nro ID" width="180" />
           <el-table-column prop="Nombre" label="Nombre" />
           <el-table-column prop="Apellidos" label="Apellidos" />
           <el-table-column prop="Edad" label="Edad" width="100" />
@@ -50,6 +69,17 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <div class="mt-4 flex justify-end" v-if="pacientes.length > 0">
+          <el-pagination
+            background
+            layout="prev, pager, next, total"
+            :page-size="pageSize"
+            :current-page="currentPage"
+            :total="pacientes.length"
+            @current-change="handlePageChange"
+          />
+        </div>
       </el-card>
 
       <!-- Dialog para crear/editar -->
@@ -65,6 +95,9 @@
           </el-form-item>
           <el-form-item label="Apellidos" required>
             <el-input v-model="form.Apellidos" />
+          </el-form-item>
+          <el-form-item label="DNI / Identidad" required>
+            <el-input v-model="form.Tipo_Identificacion" />
           </el-form-item>
           <el-form-item label="Edad">
             <el-input v-model="form.Edad" />
@@ -128,6 +161,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const form = ref<PacienteCreate & { Codigo?: number }>(createEmptyForm())
+const currentPage = ref(1)
+const pageSize = ref(10)
+const filtros = ref<{ numero_identificacion?: string }>({ numero_identificacion: '' })
 
 // Computed properties
 const hasPacientes = computed(() => pacientes.value.length > 0)
@@ -153,6 +189,8 @@ function createEmptyForm(): PacienteCreate & { Codigo?: number } {
   return {
     Nombre: '',
     Apellidos: '',
+    Numero_Identificacion: '',
+    Tipo_Identificacion: '',
     Edad: '',
     Direccion: '',
     Numero_Celular: undefined,
@@ -171,7 +209,12 @@ function createEmptyForm(): PacienteCreate & { Codigo?: number } {
 async function loadPacientes(): Promise<void> {
   loading.value = true
   try {
-    const response = await getPacientes()
+    const params: Record<string, unknown> = {}
+    if (filtros.value.numero_identificacion) {
+      params.numero_identificacion = filtros.value.numero_identificacion
+    }
+
+    const response = await getPacientes(params)
     
     if (Array.isArray(response.data)) {
       pacientes.value = response.data
@@ -185,6 +228,11 @@ async function loadPacientes(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+function limpiarFiltros(): void {
+  filtros.value.numero_identificacion = ''
+  loadPacientes()
 }
 
 /**
@@ -226,6 +274,10 @@ function handleEdit(row: Paciente): void {
 function validateForm(): boolean {
   if (!form.value.Nombre?.trim() || !form.value.Apellidos?.trim()) {
     ElMessage.warning(MESSAGES.VALIDATION_REQUIRED)
+    return false
+  }
+  if (!form.value.Tipo_Identificacion || !form.value.Tipo_Identificacion.trim()) {
+    ElMessage.warning('El campo DNI / Identidad es requerido')
     return false
   }
   return true
@@ -275,6 +327,16 @@ async function handleDelete(codigo: number): Promise<void> {
     }
     handleError(error, MESSAGES.DELETE_ERROR)
   }
+}
+
+const pacientesPaginados = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return pacientes.value.slice(start, end)
+})
+
+function handlePageChange(page: number): void {
+  currentPage.value = page
 }
 
 // Lifecycle hooks

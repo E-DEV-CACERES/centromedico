@@ -8,12 +8,86 @@ from app.database import get_db
 from app.models import Consulta, ConsultaCreate, ConsultaUpdate
 from datetime import datetime
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
+
+
+def crear_examenes_desde_descripcion(
+    cursor,
+    codigo_consulta: int,
+    codigo_paciente: int,
+    codigo_doctor: int,
+    descripcion: str,
+    fecha_consulta: Optional[datetime] = None
+):
+    """
+    Crea registros en la tabla examenes basándose en la descripción de exámenes solicitados.
+    
+    Parsea la descripción separada por comas, puntos, saltos de línea, etc.
+    y crea un registro por cada examen encontrado.
+    """
+    if not descripcion or not descripcion.strip():
+        return []
+    
+    # Verificar si la tabla examenes existe
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='examenes'")
+    if not cursor.fetchone():
+        logger.warning("La tabla examenes no existe, no se pueden crear exámenes")
+        return []
+    
+    # Parsear la descripción: dividir por comas, puntos, saltos de línea, etc.
+    # Eliminar espacios extra y filtrar vacíos
+    separadores = r'[,;\n\r]|\.\s+'
+    examenes_texto = re.split(separadores, descripcion)
+    examenes_texto = [ex.strip() for ex in examenes_texto if ex.strip()]
+    
+    if not examenes_texto:
+        return []
+    
+    # Usar la fecha de la consulta o la fecha actual
+    fecha_solicitud = fecha_consulta.isoformat() if fecha_consulta else datetime.now().isoformat()
+    
+    examenes_creados = []
+    for tipo_examen in examenes_texto:
+        if not tipo_examen:
+            continue
+        
+        try:
+            # Verificar si ya existe un examen con el mismo tipo para esta consulta
+            cursor.execute("""
+                SELECT Codigo FROM examenes 
+                WHERE Codigo_Consulta = ? AND Tipo_Examen = ?
+            """, (codigo_consulta, tipo_examen))
+            if cursor.fetchone():
+                logger.info(f"Examen '{tipo_examen}' ya existe para la consulta {codigo_consulta}")
+                continue
+            
+            # Crear el examen
+            cursor.execute("""
+                INSERT INTO examenes (
+                    Codigo_Paciente, Codigo_Doctor, Codigo_Consulta,
+                    Tipo_Examen, Fecha_Solicitud, Estado
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                codigo_paciente,
+                codigo_doctor,
+                codigo_consulta,
+                tipo_examen,
+                fecha_solicitud,
+                "Pendiente"
+            ))
+            examenes_creados.append(tipo_examen)
+            logger.info(f"Examen '{tipo_examen}' creado para consulta {codigo_consulta}")
+        except Exception as e:
+            logger.error(f"Error al crear examen '{tipo_examen}' para consulta {codigo_consulta}: {e}")
+            continue
+    
+    return examenes_creados
 
 
 @router.get("/", response_model=List[Consulta])
@@ -52,16 +126,48 @@ async def listar_consultas(
         
         cursor.execute(query, params)
         consultas = cursor.fetchall()
+        
+        # Si no hay consultas, retornar lista vacía
+        if not consultas:
+            return []
+        
+        # Verificar si la tabla examenes existe
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='examenes'")
+        tabla_examenes_existe = cursor.fetchone() is not None
+        
         resultado = []
         for row in consultas:
             consulta_dict = dict(row)
+            codigo_consulta = consulta_dict.get("Codigo")
+            
             # Convertir Examenes_Solicitados de INTEGER (0/1) a boolean
             if "Examenes_Solicitados" in consulta_dict:
                 consulta_dict["Examenes_Solicitados"] = bool(consulta_dict["Examenes_Solicitados"])
             # Convertir Examenes_Sugeridos de INTEGER (0/1) a boolean
             if "Examenes_Sugeridos" in consulta_dict:
                 consulta_dict["Examenes_Sugeridos"] = bool(consulta_dict["Examenes_Sugeridos"])
+            
+            # Obtener exámenes asociados a esta consulta desde la tabla examenes
+            examenes_asociados = []
+            if codigo_consulta and tabla_examenes_existe:
+                try:
+                    cursor.execute("""
+                        SELECT Codigo, Tipo_Examen, Fecha_Solicitud, Fecha_Resultado, 
+                               Resultado, Observaciones, Estado
+                        FROM examenes
+                        WHERE Codigo_Consulta = ?
+                        ORDER BY Fecha_Solicitud DESC
+                    """, (codigo_consulta,))
+                    examenes_rows = cursor.fetchall()
+                    for examen_row in examenes_rows:
+                        examen_dict = dict(examen_row)
+                        examenes_asociados.append(examen_dict)
+                except Exception as e:
+                    logger.warning(f"Error al cargar exámenes para consulta {codigo_consulta}: {e}")
+            
+            consulta_dict["Examenes_Asociados"] = examenes_asociados
             resultado.append(consulta_dict)
+        
         return resultado
     
     except OperationalError as e:
@@ -99,6 +205,28 @@ async def obtener_consulta(codigo: int, db: Connection = Depends(get_db)):
         # Convertir Examenes_Sugeridos de INTEGER (0/1) a boolean
         if "Examenes_Sugeridos" in consulta_dict:
             consulta_dict["Examenes_Sugeridos"] = bool(consulta_dict["Examenes_Sugeridos"])
+        
+        # Obtener exámenes asociados a esta consulta desde la tabla examenes
+        examenes_asociados = []
+        try:
+            # Verificar si la tabla examenes existe
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='examenes'")
+            if cursor.fetchone():
+                cursor.execute("""
+                    SELECT Codigo, Tipo_Examen, Fecha_Solicitud, Fecha_Resultado, 
+                           Resultado, Observaciones, Estado
+                    FROM examenes
+                    WHERE Codigo_Consulta = ?
+                    ORDER BY Fecha_Solicitud DESC
+                """, (codigo,))
+                examenes_rows = cursor.fetchall()
+                for examen_row in examenes_rows:
+                    examen_dict = dict(examen_row)
+                    examenes_asociados.append(examen_dict)
+        except Exception as e:
+            logger.warning(f"Error al cargar exámenes para consulta {codigo}: {e}")
+        
+        consulta_dict["Examenes_Asociados"] = examenes_asociados
         
         return consulta_dict
     
@@ -165,6 +293,27 @@ async def crear_consulta(consulta: ConsultaCreate, db: Connection = Depends(get_
         )
         
         codigo = cursor.lastrowid
+        
+        # Si se marcaron exámenes como solicitados y hay descripción, crear los exámenes
+        if consulta.Examenes_Solicitados and consulta.Examenes_Descripcion:
+            logger.info(f"Creando exámenes para consulta {codigo}. Descripción: {consulta.Examenes_Descripcion}")
+            try:
+                examenes_creados = crear_examenes_desde_descripcion(
+                    cursor,
+                    codigo,
+                    consulta.Codigo_Paciente,
+                    consulta.Codigo_Doctor,
+                    consulta.Examenes_Descripcion,
+                    consulta.Fecha_de_Consulta
+                )
+                if examenes_creados:
+                    logger.info(f"Se crearon {len(examenes_creados)} exámenes para la consulta {codigo}: {examenes_creados}")
+                else:
+                    logger.warning(f"No se crearon exámenes para la consulta {codigo}. Verificar descripción.")
+            except Exception as e:
+                logger.error(f"Error al crear exámenes para consulta {codigo}: {e}", exc_info=True)
+                # No fallar la creación de la consulta si hay error al crear exámenes
+        
         db.commit()
         
         cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
@@ -274,9 +423,7 @@ async def actualizar_consulta(
         # Agregar fecha de modificación
         datos["Fecha_Modificacion"] = datetime.now().isoformat()
         
-        # Construir query de actualización solo con campos que existen
-        # Esto filtra automáticamente campos que no existen en la tabla, incluyendo
-        # Examenes_Solicitados, Examenes_Sugeridos y sus descripciones si no existen
+    
         campos_validos = {k: v for k, v in datos.items() if k in columnas_disponibles}
         
         if not campos_validos:
@@ -294,8 +441,73 @@ async def actualizar_consulta(
         logger.info(f"Valores: {valores}")
         
         cursor.execute(query, valores)
+        
+        # Obtener la consulta actualizada para obtener los datos necesarios
+        cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
+        consulta_actualizada = cursor.fetchone()
+        consulta_dict_temp = dict(consulta_actualizada)
+        
+        # Si se marcaron exámenes como solicitados y hay descripción, crear los exámenes
+        # Verificar si Examenes_Solicitados está en los datos y es True (antes de convertir a entero)
+        # O si ya estaba marcado como solicitado en la consulta original
+        examenes_solicitados_en_datos = datos.get("Examenes_Solicitados")
+        examenes_solicitados_original = consulta_dict_temp.get("Examenes_Solicitados")
+        
+        # Convertir a boolean si es necesario (puede venir como True, 1, o "1")
+        if examenes_solicitados_en_datos is not None:
+            if isinstance(examenes_solicitados_en_datos, bool):
+                debe_crear_examenes = examenes_solicitados_en_datos
+            elif isinstance(examenes_solicitados_en_datos, (int, str)):
+                debe_crear_examenes = bool(int(examenes_solicitados_en_datos))
+            else:
+                debe_crear_examenes = False
+        else:
+            # Si no está en los datos, usar el valor original
+            debe_crear_examenes = bool(examenes_solicitados_original) if examenes_solicitados_original else False
+        
+        if debe_crear_examenes:
+            # Obtener la descripción (puede venir en los datos nuevos o estar en la consulta original)
+            descripcion = datos.get("Examenes_Descripcion") or consulta_dict_temp.get("Examenes_Descripcion")
+            codigo_paciente = datos.get("Codigo_Paciente") or consulta_dict_temp.get("Codigo_Paciente")
+            codigo_doctor = datos.get("Codigo_Doctor") or consulta_dict_temp.get("Codigo_Doctor")
+            fecha_consulta_str = datos.get("Fecha_de_Consulta") or consulta_dict_temp.get("Fecha_de_Consulta")
+            
+            if descripcion and codigo_paciente and codigo_doctor:
+                try:
+                    # Convertir fecha_consulta_str a datetime si es necesario
+                    fecha_consulta = None
+                    if fecha_consulta_str:
+                        if isinstance(fecha_consulta_str, str):
+                            try:
+                                fecha_consulta = datetime.fromisoformat(fecha_consulta_str.replace('Z', '+00:00'))
+                            except:
+                                try:
+                                    fecha_consulta = datetime.strptime(fecha_consulta_str, "%Y-%m-%dT%H:%M:%S")
+                                except:
+                                    fecha_consulta = datetime.now()
+                        elif hasattr(fecha_consulta_str, 'isoformat'):
+                            fecha_consulta = fecha_consulta_str
+                    
+                    logger.info(f"Creando exámenes para consulta {codigo}. Descripción: {descripcion}")
+                    examenes_creados = crear_examenes_desde_descripcion(
+                        cursor,
+                        codigo,
+                        codigo_paciente,
+                        codigo_doctor,
+                        descripcion,
+                        fecha_consulta
+                    )
+                    if examenes_creados:
+                        logger.info(f"Se crearon {len(examenes_creados)} exámenes para la consulta {codigo}: {examenes_creados}")
+                    else:
+                        logger.warning(f"No se crearon exámenes para la consulta {codigo}. Verificar descripción.")
+                except Exception as e:
+                    logger.error(f"Error al crear exámenes para consulta {codigo}: {e}", exc_info=True)
+                    # No fallar la actualización de la consulta si hay error al crear exámenes
+        
         db.commit()
         
+        # Obtener la consulta actualizada nuevamente después del commit
         cursor.execute("SELECT * FROM consultas WHERE Codigo = ?", (codigo,))
         consulta_actualizada = cursor.fetchone()
         
@@ -340,7 +552,7 @@ async def eliminar_consulta(codigo: int, db: Connection = Depends(get_db)):
     """
     Eliminar una consulta
     
-    ⚠️ Advertencia: Esto eliminará la consulta permanentemente.
+     Advertencia: Esto eliminará la consulta permanentemente.
     """
     cursor = db.cursor()
     

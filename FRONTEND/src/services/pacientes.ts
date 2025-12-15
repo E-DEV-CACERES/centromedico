@@ -13,6 +13,8 @@ export interface Paciente {
   Contacto_Emergencia?: string
   Telefono_Emergencia?: number
   Codigo_Seguro?: number
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
   Fecha_Creacion?: string
   Fecha_Modificacion?: string
 }
@@ -29,6 +31,8 @@ export interface PacienteCreate {
   Contacto_Emergencia?: string
   Telefono_Emergencia?: number
   Codigo_Seguro?: number
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
 }
 
 export interface PacienteUpdate {
@@ -43,10 +47,12 @@ export interface PacienteUpdate {
   Contacto_Emergencia?: string
   Telefono_Emergencia?: number
   Codigo_Seguro?: number
+  Numero_Identificacion?: string
+  Tipo_Identificacion?: string
 }
 
-export function getPacientes() {
-  return api.get<Paciente[]>('/api/pacientes/')
+export function getPacientes(params?: Record<string, unknown>) {
+  return api.get<Paciente[]>('/api/pacientes/', { params })
 }
 
 export function getPaciente(codigo: number) {

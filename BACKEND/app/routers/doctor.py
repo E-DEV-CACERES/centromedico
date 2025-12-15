@@ -21,7 +21,8 @@ async def listar_doctores(
     db: Connection = Depends(get_db),
     especialidad: Optional[str] = Query(None, description="Filtrar por especialidad"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
-    nombre: Optional[str] = Query(None, description="Filtrar por nombre")
+    nombre: Optional[str] = Query(None, description="Filtrar por nombre"),
+    numero_identificacion: Optional[str] = Query(None, description="Filtrar por número de identificación")
 ):
     """
     Listar todos los doctores con filtros opcionales
@@ -47,6 +48,10 @@ async def listar_doctores(
         if nombre:
             query += " AND (Nombre LIKE ? OR Apellidos LIKE ?)"
             params.extend([f"%{nombre}%", f"%{nombre}%"])
+
+        if numero_identificacion:
+            query += " AND Numero_Identificacion LIKE ?"
+            params.append(f"%{numero_identificacion}%")
         
         query += " ORDER BY Codigo DESC"
         
@@ -118,6 +123,18 @@ async def crear_doctor(doctor: DoctorCreate, db: Connection = Depends(get_db)):
                     status_code=400,
                     detail=f"El número de colegiado {doctor.Numero_Colegiado} ya existe"
                 )
+
+        # Validar que Numero_Identificacion sea único si se proporciona
+        if doctor.Numero_Identificacion:
+            cursor.execute(
+                "SELECT Codigo FROM doctor WHERE Numero_Identificacion = ?",
+                (doctor.Numero_Identificacion,)
+            )
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El número de identificación {doctor.Numero_Identificacion} ya existe"
+                )
         
         # Validación básica de correo
         if doctor.Correo and "@" not in doctor.Correo:
@@ -136,6 +153,8 @@ async def crear_doctor(doctor: DoctorCreate, db: Connection = Depends(get_db)):
             "Genero": doctor.Genero,
             "Numero_Celular": doctor.Numero_Celular,
             "Numero_Colegiado": doctor.Numero_Colegiado,
+            "Numero_Identificacion": doctor.Numero_Identificacion,
+            "Tipo_Identificacion": doctor.Tipo_Identificacion,
             "Fecha_Contratacion": doctor.Fecha_Contratacion.isoformat() if doctor.Fecha_Contratacion else None,
             "Estado": doctor.Estado or "Activo",
             "Salario": doctor.Salario
@@ -216,6 +235,18 @@ async def actualizar_doctor(
                 raise HTTPException(
                     status_code=400,
                     detail=f"El número de colegiado {datos['Numero_Colegiado']} ya está en uso"
+                )
+
+        # Validar Numero_Identificacion único si se actualiza
+        if "Numero_Identificacion" in datos and datos["Numero_Identificacion"]:
+            cursor.execute(
+                "SELECT Codigo FROM doctor WHERE Numero_Identificacion = ? AND Codigo != ?",
+                (datos["Numero_Identificacion"], codigo)
+            )
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El número de identificación {datos['Numero_Identificacion']} ya está en uso"
                 )
         
         # Validar correo si se actualiza

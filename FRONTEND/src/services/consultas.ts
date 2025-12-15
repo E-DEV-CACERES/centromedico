@@ -1,5 +1,29 @@
 import api from './api'
 
+export interface ExamenAsociado {
+  Codigo: number
+  Tipo_Examen?: string
+  Fecha_Solicitud?: string
+  Fecha_Resultado?: string
+  Resultado?: string
+  Observaciones?: string
+  Estado?: string
+}
+
+export interface ConsultaInfoCompleta {
+  Codigo: number
+  Fecha_de_Consulta?: string
+  Estado?: string
+  Tipo_de_Consulta?: string
+  Diagnostico?: string
+  Examenes_Solicitados?: boolean
+  Examenes_Descripcion?: string
+  Examenes_Sugeridos?: boolean
+  Examenes_Sugeridos_Descripcion?: string
+  Fecha_Creacion?: string
+  Fecha_Modificacion?: string
+}
+
 export interface Consulta {
   Codigo: number
   Codigo_Paciente?: number
@@ -12,6 +36,7 @@ export interface Consulta {
   Examenes_Descripcion?: string
   Examenes_Sugeridos?: boolean
   Examenes_Sugeridos_Descripcion?: string
+  Examenes_Asociados?: ExamenAsociado[]
   Fecha_Creacion?: string
   Fecha_Modificacion?: string
 }
